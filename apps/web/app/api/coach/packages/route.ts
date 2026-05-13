@@ -3,6 +3,7 @@ import { auth } from '@/lib/auth'
 import { ensureDB } from '@/lib/db'
 import { CoachProfile } from '@atleti/db'
 import type { AtletiSession } from '@atleti/types'
+import { packageSchema } from '@/lib/validations/coach'
 
 async function getCoachSession() {
   const session = await auth()
@@ -23,8 +24,12 @@ export async function POST(req: NextRequest) {
   const user = await getCoachSession()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   await ensureDB()
-  const { name, sessions, price, currency = 'UAH' } = await req.json()
-  if (!name || !sessions || !price) return NextResponse.json({ error: 'Missing fields' }, { status: 400 })
+  const body = await req.json()
+  const parsed = packageSchema.safeParse(body)
+  if (!parsed.success) {
+    return NextResponse.json({ error: parsed.error.flatten().fieldErrors }, { status: 400 })
+  }
+  const { name, sessions, price, currency } = parsed.data
   const profile = await CoachProfile.findOneAndUpdate(
     { userId: user.userId },
     { $push: { packages: { name, sessions, price, currency } } },

@@ -3,6 +3,7 @@ import { auth } from '@/lib/auth'
 import { ensureDB } from '@/lib/db'
 import { Session } from '@atleti/db'
 import type { AtletiSession } from '@atleti/types'
+import { sessionCreateSchema } from '@/lib/validations/coach'
 
 export async function GET(req: NextRequest) {
   const session = await auth()
@@ -35,10 +36,12 @@ export async function POST(req: NextRequest) {
   }
   await ensureDB()
 
-  const { clientId, scheduledAt, duration = 60, type = 'regular' } = await req.json()
-  if (!clientId || !scheduledAt) {
-    return NextResponse.json({ error: 'clientId and scheduledAt required' }, { status: 400 })
+  const body = await req.json()
+  const parsed = sessionCreateSchema.safeParse(body)
+  if (!parsed.success) {
+    return NextResponse.json({ error: parsed.error.flatten().fieldErrors }, { status: 400 })
   }
+  const { clientId, scheduledAt, duration, type } = parsed.data
 
   const newSession = await Session.create({
     clientId,

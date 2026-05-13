@@ -3,6 +3,7 @@ import { auth } from '@/lib/auth'
 import { ensureDB } from '@/lib/db'
 import { Session } from '@atleti/db'
 import type { AtletiSession } from '@atleti/types'
+import { sessionUpdateSchema } from '@/lib/validations/coach'
 
 type Params = { params: { sessionId: string } }
 
@@ -14,10 +15,12 @@ export async function PUT(req: NextRequest, { params }: Params) {
   }
   await ensureDB()
 
-  const { status, cancelReason } = await req.json()
-  if (!['scheduled', 'completed', 'cancelled'].includes(status)) {
-    return NextResponse.json({ error: 'Invalid status' }, { status: 400 })
+  const body = await req.json()
+  const parsed = sessionUpdateSchema.safeParse(body)
+  if (!parsed.success) {
+    return NextResponse.json({ error: parsed.error.flatten().fieldErrors }, { status: 400 })
   }
+  const { status, cancelReason } = parsed.data
 
   const update: Record<string, unknown> = { status }
   if (status === 'cancelled') {

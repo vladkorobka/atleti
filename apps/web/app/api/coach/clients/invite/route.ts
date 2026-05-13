@@ -4,6 +4,7 @@ import { ensureDB } from '@/lib/db'
 import { User, CoachProfile, ClientCoach } from '@atleti/db'
 import { canInviteClient } from '@/lib/coach-utils'
 import type { AtletiSession } from '@atleti/types'
+import { inviteSchema } from '@/lib/validations/coach'
 
 export async function POST(req: NextRequest) {
   const session = await auth()
@@ -12,8 +13,12 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
-  const { nickname } = await req.json()
-  if (!nickname) return NextResponse.json({ error: 'Nickname required' }, { status: 400 })
+  const body = await req.json()
+  const parsed = inviteSchema.safeParse(body)
+  if (!parsed.success) {
+    return NextResponse.json({ error: parsed.error.flatten().fieldErrors }, { status: 400 })
+  }
+  const { nickname } = parsed.data
 
   await ensureDB()
 

@@ -3,6 +3,7 @@ import { auth } from '@/lib/auth'
 import { ensureDB } from '@/lib/db'
 import { Balance } from '@atleti/db'
 import type { AtletiSession } from '@atleti/types'
+import { balanceTopupSchema } from '@/lib/validations/coach'
 
 type Params = { params: { clientId: string } }
 
@@ -37,10 +38,12 @@ export async function POST(req: NextRequest, { params }: Params) {
   }
   await ensureDB()
 
-  const { sessions, note } = await req.json()
-  if (!sessions || sessions <= 0) {
-    return NextResponse.json({ error: 'Invalid sessions count' }, { status: 400 })
+  const body = await req.json()
+  const parsed = balanceTopupSchema.safeParse(body)
+  if (!parsed.success) {
+    return NextResponse.json({ error: parsed.error.flatten().fieldErrors }, { status: 400 })
   }
+  const { sessions, note } = parsed.data
 
   const transaction = {
     type: 'topup' as const,

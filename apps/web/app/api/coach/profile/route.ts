@@ -3,6 +3,7 @@ import { auth } from '@/lib/auth'
 import { ensureDB } from '@/lib/db'
 import { CoachProfile } from '@atleti/db'
 import type { AtletiSession } from '@atleti/types'
+import { coachProfileSchema } from '@/lib/validations/coach'
 
 async function getCoachSession() {
   const session = await auth()
@@ -24,7 +25,11 @@ export async function PUT(req: NextRequest) {
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   await ensureDB()
   const body = await req.json()
-  const { bio, specializations, cancellationDeadlineHours, workingHours } = body
+  const parsed = coachProfileSchema.safeParse(body)
+  if (!parsed.success) {
+    return NextResponse.json({ error: parsed.error.flatten().fieldErrors }, { status: 400 })
+  }
+  const { bio, specializations, cancellationDeadlineHours, workingHours } = parsed.data
   const profile = await CoachProfile.findOneAndUpdate(
     { userId: user.userId },
     { bio, specializations, cancellationDeadlineHours, workingHours },
