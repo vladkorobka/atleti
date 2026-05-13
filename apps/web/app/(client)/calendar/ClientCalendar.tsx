@@ -51,12 +51,16 @@ export default function ClientCalendar() {
   const [sessions, setSessions] = useState<Session[]>([])
   const [selectedDay, setSelectedDay] = useState<Date | null>(null)
   const [cancelling, setCancelling] = useState<string | null>(null)
+  const [error, setError] = useState('')
 
   const loadSessions = useCallback(async () => {
-    const res = await fetch('/api/client/sessions')
-    if (res.ok) {
+    try {
+      const res = await fetch('/api/client/sessions')
+      if (!res.ok) { setError('Помилка завантаження занять'); return }
       const data = await res.json()
       setSessions(data.sessions ?? [])
+    } catch {
+      setError('Помилка завантаження занять')
     }
   }, [])
 
@@ -111,6 +115,7 @@ export default function ClientCalendar() {
 
   return (
     <div className="space-y-4 pt-4">
+      {error && <p className="text-sm text-red-500 text-center py-2">{error}</p>}
       {/* Month navigation */}
       <div className="flex items-center justify-between">
         <button onClick={prevMonth} className="p-2 rounded-md hover:bg-gray-100 transition-colors text-gray-600">

@@ -10,7 +10,13 @@ export function LeaveCoachButton() {
     if (!window.confirm('Ви впевнені, що хочете залишити тренера?')) return
     setLoading(true)
     try {
-      await fetch('/api/client/coach', { method: 'DELETE' })
+      const res = await fetch('/api/client/coach', { method: 'DELETE' })
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}))
+        alert(data.error ?? 'Помилка. Спробуйте ще раз.')
+        setLoading(false)
+        return
+      }
       router.push('/dashboard')
     } catch {
       alert('Помилка. Спробуйте ще раз.')
