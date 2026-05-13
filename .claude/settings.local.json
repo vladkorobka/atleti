@@ -1,0 +1,32 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(mkdir -p \"C:\\\\atleti\\\\docs\\\\superpowers\\\\specs\")",
+      "Bash(mkdir -p \"C:\\\\atleti\\\\.claude\")",
+      "Bash(git init *)",
+      "Bash(git checkout *)",
+      "Bash(git add *)",
+      "Bash(git commit *)",
+      "Bash(git branch *)",
+      "PowerShell(pnpm *)",
+      "PowerShell(npm install *)",
+      "Bash(pnpm --version)",
+      "Bash(pnpm install *)",
+      "Bash(Get-ChildItem -Path \"C:\\\\atleti\" -Directory)",
+      "Bash(Select-Object Name)",
+      "Bash(npx tsc *)",
+      "Bash(pnpm *)",
+      "Bash(node ../../node_modules/.pnpm/vitest@1.6.1_@types+node@25.7.0/node_modules/vitest/dist/cli-wrapper.js run)",
+      "Bash(MONGOMS_DOWNLOAD_DIR=\"C:/atleti/node_modules/.cache/mongodb-memory-server\" MONGOMS_VERSION=\"6.0.14\" node ../../node_modules/.pnpm/vitest@1.6.1_@types+node@25.7.0/node_modules/vitest/dist/cli-wrapper.js run)",
+      "Bash(git rm *)",
+      "PowerShell(New-Item *)",
+      "PowerShell(cd \"C:\\\\atleti\"; powershell -ExecutionPolicy Bypass -Command \"pnpm install\")",
+      "PowerShell(cd \"C:\\\\atleti\"; powershell -ExecutionPolicy Bypass -Command \"git status\")",
+      "PowerShell(cd \"C:\\\\atleti\"; powershell -ExecutionPolicy Bypass -Command \"git add apps/web\")",
+      "PowerShell(cd \"C:\\\\atleti\"; powershell -ExecutionPolicy Bypass -Command \"git commit -m 'chore: setup next.js app with tailwind and dependencies'\")",
+      "PowerShell(cd \"C:\\\\atleti\"; powershell -ExecutionPolicy Bypass -Command \"git log --oneline -1\")",
+      "Bash(MONGOMS_DOWNLOAD_DIR=\"C:/atleti/node_modules/.cache/mongodb-memory-server\" node ../../node_modules/.pnpm/vitest@1.6.1_@types+node@25.7.0/node_modules/vitest/dist/cli-wrapper.js run __tests__/middleware.test.ts)",
+      "Bash(node ../../node_modules/.pnpm/vitest@1.6.1_@types+node@25.7.0/node_modules/vitest/dist/cli-wrapper.js run __tests__/middleware.test.ts)"
+    ]
+  }
+}
