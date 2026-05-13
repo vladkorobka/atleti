@@ -5,6 +5,7 @@ node_modules/
 dist/
 .turbo/
 *.log
+*.stackdump
 .DS_Store
 coverage/
 playwright-report/
