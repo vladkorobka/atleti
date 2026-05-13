@@ -62,7 +62,7 @@ test.describe('Client: Calendar', () => {
     const client = await createTestClient(request, `_ccal_${ts}`)
 
     await loginUser(page, client.email, client.password)
-    await page.goto('/calendar')
+    await page.goto('/sessions')
 
     // MONTHS_UA array in ClientCalendar.tsx — current month May 2026 = "Травень"
     const now = new Date()
