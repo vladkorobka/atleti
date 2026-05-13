@@ -26,7 +26,11 @@
       "PowerShell(cd \"C:\\\\atleti\"; powershell -ExecutionPolicy Bypass -Command \"git commit -m 'chore: setup next.js app with tailwind and dependencies'\")",
       "PowerShell(cd \"C:\\\\atleti\"; powershell -ExecutionPolicy Bypass -Command \"git log --oneline -1\")",
       "Bash(MONGOMS_DOWNLOAD_DIR=\"C:/atleti/node_modules/.cache/mongodb-memory-server\" node ../../node_modules/.pnpm/vitest@1.6.1_@types+node@25.7.0/node_modules/vitest/dist/cli-wrapper.js run __tests__/middleware.test.ts)",
-      "Bash(node ../../node_modules/.pnpm/vitest@1.6.1_@types+node@25.7.0/node_modules/vitest/dist/cli-wrapper.js run __tests__/middleware.test.ts)"
+      "Bash(node ../../node_modules/.pnpm/vitest@1.6.1_@types+node@25.7.0/node_modules/vitest/dist/cli-wrapper.js run __tests__/middleware.test.ts)",
+      "Bash(MONGOMS_DOWNLOAD_DIR=\"C:/atleti/node_modules/.cache/mongodb-memory-server\" node ../../node_modules/.pnpm/vitest@1.6.1_@types+node@25.7.0/node_modules/vitest/dist/cli-wrapper.js run __tests__/api/register.test.ts)",
+      "Bash(MONGOMS_DOWNLOAD_DIR=\"C:/atleti/node_modules/.cache/mongodb-memory-server\" node ../..node_modules/.pnpm/vitest@1.6.1_@types+node@25.7.0/node_modules/vitest/dist/cli-wrapper.js run __tests__/api/register.test.ts)",
+      "Bash(node ../../node_modules/.pnpm/vitest@1.6.1_@types+node@25.7.0/node_modules/vitest/dist/cli-wrapper.js run __tests__/api/register.test.ts)",
+      "Bash(MONGOMS_DOWNLOAD_DIR=\"C:/atleti/node_modules/.cache/mongodb-memory-server\" node node_modules/.pnpm/vitest@1.6.1_@types+node@25.7.0/node_modules/vitest/dist/cli-wrapper.js run apps/web/__tests__/api/register.test.ts --root apps/web)"
     ]
   }
 }

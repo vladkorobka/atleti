@@ -7,7 +7,7 @@
     "start": "next start",
     "lint": "next lint",
     "typecheck": "tsc --noEmit",
-    "test": "vitest run",
+    "test": "cross-env MONGOMS_DOWNLOAD_DIR=../../node_modules/.cache/mongodb-memory-server vitest run",
     "test:e2e": "playwright test"
   },
   "dependencies": {
