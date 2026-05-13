@@ -5,8 +5,10 @@ import bcrypt from 'bcryptjs'
 import { ensureDB } from './db'
 import { User } from '@atleti/db'
 import type { AtletiSession } from '@atleti/types'
+import { authConfig } from './auth.config'
 
 export const { handlers, signIn, signOut, auth } = NextAuth({
+  ...authConfig,
   providers: [
     Google({
       clientId: process.env.GOOGLE_CLIENT_ID!,
@@ -29,18 +31,15 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
     }),
   ],
   callbacks: {
+    ...authConfig.callbacks,
     async signIn({ user, account }) {
       await ensureDB()
       if (account?.provider === 'google') {
         const existing = await User.findOne({ email: user.email })
         if (!existing) {
           await User.create({
-            email: user.email,
-            name: user.name,
-            avatar: user.image,
-            googleId: account.providerAccountId,
-            role: 'client',
-            nickname: '',
+            email: user.email, name: user.name, avatar: user.image,
+            googleId: account.providerAccountId, role: 'client', nickname: '',
           })
         } else if (!(existing as any).googleId) {
           await User.updateOne({ _id: existing._id }, { googleId: account.providerAccountId })
@@ -60,17 +59,5 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
       }
       return token
     },
-    async session({ session, token }) {
-      const s = session as unknown as { user: AtletiSession }
-      s.user.userId = token.userId as string
-      s.user.role = token.role as AtletiSession['role']
-      s.user.nickname = token.nickname as string
-      return session
-    },
   },
-  pages: {
-    signIn: '/login',
-    error: '/login',
-  },
-  session: { strategy: 'jwt' },
 })
