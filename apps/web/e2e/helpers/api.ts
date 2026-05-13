@@ -23,3 +23,7 @@ export async function createTestClient(request: APIRequestContext, suffix = '') 
   await request.post('/api/auth/register', { data: client })
   return client
 }
+
+export async function sendInvite(request: APIRequestContext, clientNickname: string) {
+  return request.post('/api/coach/clients/invite', { data: { nickname: clientNickname } })
+}
