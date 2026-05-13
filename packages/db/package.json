@@ -1,0 +1,25 @@
+{
+  "name": "@atleti/db",
+  "version": "0.0.1",
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "test": "cross-env MONGOMS_DOWNLOAD_DIR=../../node_modules/.cache/mongodb-memory-server MONGOMS_VERSION=6.0.14 vitest run"
+  },
+  "dependencies": {
+    "mongoose": "^8.3.0",
+    "@atleti/types": "workspace:*"
+  },
+  "config": {
+    "mongodbMemoryServer": {
+      "downloadDir": "../../node_modules/.cache/mongodb-memory-server",
+      "version": "6.0.14"
+    }
+  },
+  "devDependencies": {
+    "typescript": "^5.4.0",
+    "vitest": "^1.6.0",
+    "mongodb-memory-server": "^9.2.0"
+  }
+}
