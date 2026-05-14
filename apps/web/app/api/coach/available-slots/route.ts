@@ -36,9 +36,9 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ slots: [] })
   }
 
-  const dayStart = new Date(`${date}T00:00:00.000Z`)
-  const dayEnd = new Date(`${date}T23:59:59.999Z`)
-  const dowKey = DOW_KEYS[dayStart.getUTCDay()] as DowKey
+  const dayStart = new Date(`${date}T00:00:00`)
+  const dayEnd = new Date(`${date}T23:59:59.999`)
+  const dowKey = DOW_KEYS[dayStart.getDay()] as DowKey
   const dayHours = coachProfile.workingHours?.[dowKey]
 
   if (!dayHours?.start || !dayHours?.end || !dayHours?.slotDuration) {
@@ -53,7 +53,7 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ slots: [] })
   }
 
-  const blockedSlotSet = new Set(getBlockedSlots(blocks, date, dowKey, allSlots))
+  const blockedSlotSet = new Set(getBlockedSlots(blocks, date, dowKey, allSlots, dayHours.slotDuration))
 
   const bookedSessions = await Session.find({
     coachId: relationship.coachId,
@@ -64,7 +64,7 @@ export async function GET(req: NextRequest) {
   const bookedTimes = new Set(
     bookedSessions.map(s => {
       const d = new Date(s.scheduledAt)
-      return `${String(d.getUTCHours()).padStart(2, '0')}:${String(d.getUTCMinutes()).padStart(2, '0')}`
+      return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`
     })
   )
 

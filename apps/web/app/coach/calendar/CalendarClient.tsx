@@ -374,7 +374,7 @@ export default function CalendarClient({ clients }: { clients: Client[] }) {
         const sd = new Date(s.scheduledAt)
         return sd.getHours() === h && sd.getMinutes() === m
       })
-      const block = getSlotBlock(blocks, slot, ds, dowKey)
+      const block = getSlotBlock(blocks, slot, ds, dowKey, dayHours.slotDuration)
       return { slot, session, block }
     })
   }

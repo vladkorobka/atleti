@@ -47,13 +47,14 @@ export function getBlockedSlots(
   date: string,
   dowKey: DowKey,
   slots: string[],
+  slotDurationMin: number,
 ): string[] {
   const timeBlocks = blocks.filter(b => b.type === 'time' && blockAppliesToDate(b, date, dowKey))
   return slots.filter(slot => {
     const slotMin = parseMinutes(slot)
     return timeBlocks.some(b => {
       if (!b.startTime || !b.endTime) return false
-      return slotMin >= parseMinutes(b.startTime) && slotMin < parseMinutes(b.endTime)
+      return slotMin < parseMinutes(b.endTime) && (slotMin + slotDurationMin) > parseMinutes(b.startTime)
     })
   })
 }
@@ -63,12 +64,13 @@ export function getSlotBlock(
   slot: string,
   date: string,
   dowKey: DowKey,
+  slotDurationMin: number,
 ): ICoachBlock | null {
   const slotMin = parseMinutes(slot)
   return blocks.find(b => {
     if (b.type !== 'time') return false
     if (!blockAppliesToDate(b, date, dowKey)) return false
     if (!b.startTime || !b.endTime) return false
-    return slotMin >= parseMinutes(b.startTime) && slotMin < parseMinutes(b.endTime)
+    return slotMin < parseMinutes(b.endTime) && (slotMin + slotDurationMin) > parseMinutes(b.startTime)
   }) ?? null
 }

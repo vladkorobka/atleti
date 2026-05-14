@@ -54,35 +54,46 @@ describe('isDayBlocked', () => {
 describe('getBlockedSlots', () => {
   it('blocks slots within a one-time time block range', () => {
     const blocks: ICoachBlock[] = [{ _id: '1', coachId: 'c', type: 'time', date: '2026-05-14', startTime: '12:00', endTime: '14:00' }]
-    expect(getBlockedSlots(blocks, '2026-05-14', 'thu', slots)).toEqual(['12:00', '13:00'])
+    expect(getBlockedSlots(blocks, '2026-05-14', 'thu', slots, 60)).toEqual(['12:00', '13:00'])
   })
 
   it('does not block slots outside time block range', () => {
     const blocks: ICoachBlock[] = [{ _id: '1', coachId: 'c', type: 'time', date: '2026-05-14', startTime: '12:00', endTime: '13:00' }]
-    const result = getBlockedSlots(blocks, '2026-05-14', 'thu', slots)
+    const result = getBlockedSlots(blocks, '2026-05-14', 'thu', slots, 60)
     expect(result).toEqual(['12:00'])
     expect(result).not.toContain('13:00')
   })
 
   it('handles recurring daily time block', () => {
     const blocks: ICoachBlock[] = [{ _id: '1', coachId: 'c', type: 'time', startTime: '12:00', endTime: '13:00', recurring: { type: 'daily' } }]
-    expect(getBlockedSlots(blocks, '2026-05-14', 'thu', slots)).toEqual(['12:00'])
+    expect(getBlockedSlots(blocks, '2026-05-14', 'thu', slots, 60)).toEqual(['12:00'])
   })
 
   it('returns empty when no blocks apply to date', () => {
     const blocks: ICoachBlock[] = [{ _id: '1', coachId: 'c', type: 'time', date: '2026-05-15', startTime: '12:00', endTime: '13:00' }]
-    expect(getBlockedSlots(blocks, '2026-05-14', 'thu', slots)).toEqual([])
+    expect(getBlockedSlots(blocks, '2026-05-14', 'thu', slots, 60)).toEqual([])
+  })
+
+  it('detects partial overlap: 60-min slot at 12:00 overlaps block 12:30–13:00', () => {
+    const blocks: ICoachBlock[] = [{ _id: '1', coachId: 'c', type: 'time', date: '2026-05-14', startTime: '12:30', endTime: '13:00' }]
+    const result = getBlockedSlots(blocks, '2026-05-14', 'thu', ['12:00'], 60)
+    expect(result).toContain('12:00')
   })
 })
 
 describe('getSlotBlock', () => {
   it('returns the block that covers the given slot', () => {
     const lunch: ICoachBlock = { _id: '1', coachId: 'c', type: 'time', date: '2026-05-14', startTime: '12:00', endTime: '13:00', label: 'Обід' }
-    expect(getSlotBlock([lunch], '12:00', '2026-05-14', 'thu')).toBe(lunch)
+    expect(getSlotBlock([lunch], '12:00', '2026-05-14', 'thu', 60)).toBe(lunch)
   })
 
   it('returns null when slot is not blocked', () => {
     const lunch: ICoachBlock = { _id: '1', coachId: 'c', type: 'time', date: '2026-05-14', startTime: '12:00', endTime: '13:00' }
-    expect(getSlotBlock([lunch], '11:00', '2026-05-14', 'thu')).toBeNull()
+    expect(getSlotBlock([lunch], '11:00', '2026-05-14', 'thu', 60)).toBeNull()
+  })
+
+  it('detects partial overlap: 60-min slot at 12:00 overlaps block 12:30–13:30', () => {
+    const block: ICoachBlock = { _id: '1', coachId: 'c', type: 'time', date: '2026-05-14', startTime: '12:30', endTime: '13:30' }
+    expect(getSlotBlock([block], '12:00', '2026-05-14', 'thu', 60)).toBe(block)
   })
 })
