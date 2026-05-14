@@ -133,27 +133,36 @@ export default function CalendarClient({ clients }: { clients: Client[] }) {
   })
 
   const loadSettings = useCallback(async () => {
-    const res = await fetch('/api/coach/settings')
-    if (res.ok) {
-      const data = await res.json()
-      setWorkingHours(data.workingHours ?? {})
+    try {
+      const res = await fetch('/api/coach/settings')
+      if (res.ok) {
+        const data = await res.json()
+        setWorkingHours(data.workingHours ?? {})
+      }
+    } catch {
+      setError('Помилка завантаження налаштувань')
     }
   }, [])
 
   const loadSessions = useCallback(async () => {
-    const monthStr = `${year}-${String(month + 1).padStart(2, '0')}`
-    const [sessRes, blkRes] = await Promise.all([
-      fetch(`/api/coach/sessions?month=${monthStr}`),
-      fetch(`/api/coach/blocks?month=${monthStr}`),
-    ])
-    if (!sessRes.ok) { setError('Помилка завантаження занять'); setLoading(false); return }
-    const sessData = await sessRes.json()
-    setSessions(sessData.sessions ?? [])
-    if (blkRes.ok) {
-      const blkData = await blkRes.json()
-      setBlocks(blkData.blocks ?? [])
+    try {
+      const monthStr = `${year}-${String(month + 1).padStart(2, '0')}`
+      const [sessRes, blkRes] = await Promise.all([
+        fetch(`/api/coach/sessions?month=${monthStr}`),
+        fetch(`/api/coach/blocks?month=${monthStr}`),
+      ])
+      if (!sessRes.ok) { setError('Помилка завантаження занять'); return }
+      const sessData = await sessRes.json()
+      setSessions(sessData.sessions ?? [])
+      if (blkRes.ok) {
+        const blkData = await blkRes.json()
+        setBlocks(blkData.blocks ?? [])
+      }
+    } catch {
+      setError('Помилка завантаження даних')
+    } finally {
+      setLoading(false)
     }
-    setLoading(false)
   }, [year, month])
 
   useEffect(() => { loadSettings() }, [loadSettings])
@@ -169,6 +178,7 @@ export default function CalendarClient({ clients }: { clients: Client[] }) {
   }
 
   function openScheduleModal() {
+    setError('')
     setScheduleForm(makeDefaultScheduleForm(workingHours))
     setScheduleOpen(true)
   }
@@ -184,15 +194,20 @@ export default function CalendarClient({ clients }: { clients: Client[] }) {
         newWorkingHours[key] = { start: d.start, end: d.end, slotDuration: Number(d.slotDuration) }
       }
     }
-    const res = await fetch('/api/coach/settings', {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ workingHours: newWorkingHours }),
-    })
-    setSaving(false)
-    if (!res.ok) { setError('Помилка збереження'); return }
-    setWorkingHours(newWorkingHours)
-    setScheduleOpen(false)
+    try {
+      const res = await fetch('/api/coach/settings', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ workingHours: newWorkingHours }),
+      })
+      if (!res.ok) { setError('Помилка збереження'); return }
+      setWorkingHours(newWorkingHours)
+      setScheduleOpen(false)
+    } catch {
+      setError('Помилка збереження')
+    } finally {
+      setSaving(false)
+    }
   }
 
   async function handleAddBlock(e: React.FormEvent) {
@@ -222,43 +237,62 @@ export default function CalendarClient({ clients }: { clients: Client[] }) {
         }
       }
     }
-    const res = await fetch('/api/coach/blocks', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(body),
-    })
-    const data = await res.json()
-    setSaving(false)
-    if (!res.ok) { setError(typeof data.error === 'string' ? data.error : 'Помилка'); return }
-    setBlockOpen(false)
-    await loadSessions()
+    try {
+      const res = await fetch('/api/coach/blocks', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      })
+      const data = await res.json()
+      if (!res.ok) { setError(typeof data.error === 'string' ? data.error : 'Помилка'); return }
+      setBlockOpen(false)
+      await loadSessions()
+    } catch {
+      setError('Помилка збереження блоку')
+    } finally {
+      setSaving(false)
+    }
   }
 
   async function handleDeleteBlock(blockId: string) {
-    const res = await fetch(`/api/coach/blocks/${blockId}`, { method: 'DELETE' })
-    if (res.ok) await loadSessions()
+    try {
+      const res = await fetch(`/api/coach/blocks/${blockId}`, { method: 'DELETE' })
+      if (res.ok) {
+        await loadSessions()
+      } else {
+        setError('Помилка видалення блоку')
+      }
+    } catch {
+      setError('Помилка видалення блоку')
+    }
   }
 
   async function handleAddSession(e: React.FormEvent) {
     e.preventDefault()
     setSaving(true)
     setError('')
-    const scheduledAt = new Date(`${form.date}T${form.time}:00`).toISOString()
-    const res = await fetch('/api/coach/sessions', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ clientId: form.clientId, scheduledAt, duration: Number(form.duration), type: form.type }),
-    })
-    const data = await res.json()
-    if (!res.ok) { setError(typeof data.error === 'string' ? data.error : 'Помилка'); setSaving(false); return }
-    setAddOpen(false)
-    setSaving(false)
-    await loadSessions()
+    try {
+      const scheduledAt = new Date(`${form.date}T${form.time}:00`).toISOString()
+      const res = await fetch('/api/coach/sessions', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ clientId: form.clientId, scheduledAt, duration: Number(form.duration), type: form.type }),
+      })
+      const data = await res.json()
+      if (!res.ok) { setError(typeof data.error === 'string' ? data.error : 'Помилка'); return }
+      setAddOpen(false)
+      await loadSessions()
+    } catch {
+      setError('Помилка створення заняття')
+    } finally {
+      setSaving(false)
+    }
   }
 
   function openEditModal(s: Session) {
     const d = new Date(s.scheduledAt)
     const pad = (n: number) => String(n).padStart(2, '0')
+    setError('')
     setEditForm({
       date: `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`,
       time: `${pad(d.getHours())}:${pad(d.getMinutes())}`,
@@ -273,28 +307,45 @@ export default function CalendarClient({ clients }: { clients: Client[] }) {
     if (!editModal) return
     setSaving(true)
     setError('')
-    const scheduledAt = new Date(`${editForm.date}T${editForm.time}:00`).toISOString()
-    const res = await fetch(`/api/coach/sessions/${editModal._id}`, {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ scheduledAt, duration: Number(editForm.duration), type: editForm.type }),
-    })
-    const data = await res.json()
-    setSaving(false)
-    if (!res.ok) { setError(typeof data.error === 'string' ? data.error : 'Помилка'); return }
-    setEditModal(null)
-    await loadSessions()
+    try {
+      const scheduledAt = new Date(`${editForm.date}T${editForm.time}:00`).toISOString()
+      const res = await fetch(`/api/coach/sessions/${editModal._id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ scheduledAt, duration: Number(editForm.duration), type: editForm.type }),
+      })
+      const data = await res.json()
+      if (!res.ok) { setError(typeof data.error === 'string' ? data.error : 'Помилка'); return }
+      setEditModal(null)
+      await loadSessions()
+    } catch {
+      setError('Помилка збереження заняття')
+    } finally {
+      setSaving(false)
+    }
   }
 
   async function handleStatusChange(sessionId: string, status: string) {
     setStatusChanging(true)
-    const res = await fetch(`/api/coach/sessions/${sessionId}`, {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ status }),
-    })
-    setStatusChanging(false)
-    if (res.ok) { setStatusModal(null); await loadSessions() }
+    setError('')
+    try {
+      const res = await fetch(`/api/coach/sessions/${sessionId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status }),
+      })
+      if (res.ok) {
+        setStatusModal(null)
+        await loadSessions()
+      } else {
+        const data = await res.json().catch(() => ({}))
+        setError(typeof data.error === 'string' ? data.error : 'Помилка зміни статусу')
+      }
+    } catch {
+      setError('Помилка зміни статусу')
+    } finally {
+      setStatusChanging(false)
+    }
   }
 
   const grid = getMonthGrid(year, month)
@@ -343,13 +394,13 @@ export default function CalendarClient({ clients }: { clients: Client[] }) {
           ⚙️ Робочий графік
         </button>
         <button
-          onClick={() => setBlockOpen(true)}
+          onClick={() => { setError(''); setBlockOpen(true) }}
           className="bg-white border border-gray-200 text-gray-700 rounded-md px-3 py-2 text-sm font-medium hover:bg-gray-50 transition-colors"
         >
           🚫 Заблокувати
         </button>
         <button
-          onClick={() => setAddOpen(true)}
+          onClick={() => { setError(''); setAddOpen(true) }}
           disabled={clients.length === 0}
           className="ml-auto bg-gray-900 text-white rounded-md px-3 py-2 text-sm font-medium hover:bg-gray-700 transition-colors disabled:opacity-40"
         >
@@ -455,7 +506,7 @@ export default function CalendarClient({ clients }: { clients: Client[] }) {
                       ) : session ? (
                         <div className="flex items-center justify-between flex-1 min-w-0">
                           <span className="text-xs text-gray-700 truncate">
-                            {typeof session.clientId === 'object' ? (session.clientId as any).name : '—'}
+                            {typeof session.clientId === 'object' ? session.clientId.name : '—'}
                           </span>
                           <div className="flex gap-2 shrink-0">
                             {session.status === 'scheduled' && (
@@ -463,7 +514,7 @@ export default function CalendarClient({ clients }: { clients: Client[] }) {
                                 <button onClick={() => openEditModal(session)} className="text-xs text-gray-400 hover:text-gray-600 underline">
                                   ред.
                                 </button>
-                                <button onClick={() => setStatusModal(session)} className="text-xs text-gray-400 hover:text-gray-600 underline">
+                                <button onClick={() => { setError(''); setStatusModal(session) }} className="text-xs text-gray-400 hover:text-gray-600 underline">
                                   статус
                                 </button>
                               </>
@@ -611,6 +662,7 @@ export default function CalendarClient({ clients }: { clients: Client[] }) {
                   )}
                   <input type="date" value={blockForm.recurringUntil}
                     onChange={e => setBlockForm(f => ({ ...f, recurringUntil: e.target.value }))}
+                    min={new Date().toISOString().slice(0, 10)}
                     placeholder="До дати (необов'язково)"
                     className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-400"
                   />
@@ -684,7 +736,7 @@ export default function CalendarClient({ clients }: { clients: Client[] }) {
 
       {/* Status change modal */}
       {statusModal && (
-        <GlassModal open={true} onClose={() => setStatusModal(null)} title="Статус заняття">
+        <GlassModal open={true} onClose={() => { setStatusModal(null); setError('') }} title="Статус заняття">
           <div className="space-y-2">
             <button onClick={() => handleStatusChange(statusModal._id, 'completed')} disabled={statusChanging}
               className={`w-full border border-green-300 text-green-700 rounded-md py-2.5 text-sm font-medium hover:bg-green-50 transition-colors${statusChanging ? ' opacity-50' : ''}`}>
@@ -694,6 +746,7 @@ export default function CalendarClient({ clients }: { clients: Client[] }) {
               className={`w-full border border-red-300 text-red-700 rounded-md py-2.5 text-sm font-medium hover:bg-red-50 transition-colors${statusChanging ? ' opacity-50' : ''}`}>
               Скасувати заняття
             </button>
+            {error && <p className="text-xs text-red-500">{error}</p>}
           </div>
         </GlassModal>
       )}
