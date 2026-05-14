@@ -20,13 +20,6 @@ export interface IUser {
   updatedAt: Date
 }
 
-export interface IPackage {
-  name: string
-  sessions: number
-  price: number
-  currency: 'UAH'
-}
-
 export interface IWorkingHoursDay {
   start: string   // "09:00"
   end: string     // "18:00"
@@ -40,7 +33,6 @@ export interface ICoachProfile {
   specializations: string[]
   workingHours: Partial<Record<'mon' | 'tue' | 'wed' | 'thu' | 'fri' | 'sat' | 'sun', IWorkingHoursDay>>
   cancellationDeadlineHours: number
-  packages: IPackage[]
   plan: CoachPlan
   clientLimit: number
 }

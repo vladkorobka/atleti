@@ -20,6 +20,8 @@ export const BalanceSchema = new Schema<IBalance>({
   transactions: [TransactionSchema],
 })
 
+BalanceSchema.index({ clientId: 1, coachId: 1 }, { unique: true })
+
 BalanceSchema.virtual('sessionsRemaining').get(function () {
   return this.sessionsTotal - this.sessionsUsed
 })

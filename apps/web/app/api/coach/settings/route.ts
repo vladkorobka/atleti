@@ -1,8 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { auth } from '@/lib/auth'
 import { ensureDB } from '@/lib/db'
-import { User, CoachProfile } from '@atleti/db'
+import { CoachProfile } from '@atleti/db'
 import type { AtletiSession } from '@atleti/types'
+import { coachProfileSchema } from '@/lib/validations/coach'
 
 export async function GET() {
   const session = await auth()
@@ -11,9 +12,7 @@ export async function GET() {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
   await ensureDB()
-  const coachUser = await User.findOne({ email: coachSession.email })
-  if (!coachUser) return NextResponse.json({ error: 'Not found' }, { status: 404 })
-  const profile = await CoachProfile.findOne({ userId: coachUser._id })
+  const profile = await CoachProfile.findOne({ userId: coachSession.userId })
   return NextResponse.json({
     workingHours: profile?.workingHours ?? {},
     cancellationDeadlineHours: profile?.cancellationDeadlineHours ?? 24,
@@ -27,11 +26,14 @@ export async function PUT(req: NextRequest) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
   await ensureDB()
-  const coachUser = await User.findOne({ email: coachSession.email })
-  if (!coachUser) return NextResponse.json({ error: 'Not found' }, { status: 404 })
-  const { workingHours, cancellationDeadlineHours } = await req.json()
+  const body = await req.json()
+  const parsed = coachProfileSchema.safeParse(body)
+  if (!parsed.success) {
+    return NextResponse.json({ error: parsed.error.flatten().fieldErrors }, { status: 400 })
+  }
+  const { workingHours, cancellationDeadlineHours } = parsed.data
   const profile = await CoachProfile.findOneAndUpdate(
-    { userId: coachUser._id },
+    { userId: coachSession.userId },
     { workingHours, cancellationDeadlineHours },
     { upsert: true, new: true }
   )

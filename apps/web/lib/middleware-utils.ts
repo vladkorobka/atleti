@@ -6,7 +6,7 @@ export function resolveRedirect(
   if (publicPaths.some((p) => pathname.startsWith(p))) return null
   if (!session) return '/login'
   if (!session.nickname) return '/role-select'
-  if (pathname.startsWith('/coach') && session.role !== 'coach') return '/dashboard'
-  if (pathname.startsWith('/client') && session.role !== 'client') return '/dashboard'
+  if (pathname.startsWith('/coach') && session.role !== 'coach') return '/'
+  if (pathname.startsWith('/client') && session.role !== 'client') return '/'
   return null
 }

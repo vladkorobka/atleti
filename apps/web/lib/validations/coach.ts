@@ -15,15 +15,6 @@ export const coachProfileSchema = z.object({
   workingHours: z.record(dayKey, workingHoursDaySchema).optional(),
 })
 
-export const packageSchema = z.object({
-  name: z.string().min(1).max(100),
-  sessions: z.number().int().min(1).max(1000),
-  price: z.number().min(0),
-  currency: z.literal('UAH').optional().default('UAH'),
-})
-
-export const packageUpdateSchema = packageSchema
-
 export const inviteSchema = z.object({
   nickname: z.string().min(1).max(50),
 })
@@ -41,6 +32,12 @@ export const sessionCreateSchema = z.object({
 })
 
 export const sessionUpdateSchema = z.object({
-  status: z.enum(['scheduled', 'completed', 'cancelled']),
+  status: z.enum(['completed', 'cancelled']),
   cancelReason: z.string().max(500).optional(),
+})
+
+export const sessionEditSchema = z.object({
+  scheduledAt: z.string().datetime(),
+  duration: z.number().int().min(15).max(480),
+  type: z.enum(['regular', 'split', 'online', 'consultation']),
 })

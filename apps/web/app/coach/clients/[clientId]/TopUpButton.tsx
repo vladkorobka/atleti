@@ -1,10 +1,12 @@
 'use client'
 import { useState } from 'react'
+import { useRouter } from 'next/navigation'
 import { GlassModal } from '@atleti/ui'
 
 interface Props { clientId: string }
 
 export default function TopUpButton({ clientId }: Props) {
+  const router = useRouter()
   const [open, setOpen] = useState(false)
   const [sessions, setSessions] = useState('')
   const [note, setNote] = useState('')
@@ -26,7 +28,7 @@ export default function TopUpButton({ clientId }: Props) {
     setSessions('')
     setNote('')
     setLoading(false)
-    window.location.reload()
+    router.refresh()
   }
 
   return (

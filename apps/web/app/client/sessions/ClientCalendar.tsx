@@ -52,6 +52,7 @@ export default function ClientCalendar() {
   const [selectedDay, setSelectedDay] = useState<Date | null>(null)
   const [cancelling, setCancelling] = useState<string | null>(null)
   const [error, setError] = useState('')
+  const [loading, setLoading] = useState(true)
 
   const loadSessions = useCallback(async () => {
     try {
@@ -61,6 +62,8 @@ export default function ClientCalendar() {
       setSessions(data.sessions ?? [])
     } catch {
       setError('Помилка завантаження занять')
+    } finally {
+      setLoading(false)
     }
   }, [])
 
@@ -112,6 +115,8 @@ export default function ClientCalendar() {
       alert('Помилка при скасуванні заняття')
     }
   }
+
+  if (loading) return <div className="pt-4"><p className="text-sm text-gray-400">Завантаження...</p></div>
 
   return (
     <div className="space-y-4 pt-4">

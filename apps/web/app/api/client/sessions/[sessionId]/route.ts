@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { auth } from '@/lib/auth'
 import { ensureDB } from '@/lib/db'
-import { Session, ClientCoach, CoachProfile, Balance } from '@atleti/db'
+import { Session, ClientCoach, CoachProfile } from '@atleti/db'
 import type { AtletiSession } from '@atleti/types'
 import { canClientCancel } from '@/lib/session-utils'
 import { clientCancelSchema } from '@/lib/validations/client'
@@ -61,25 +61,6 @@ export async function PUT(req: NextRequest, { params }: Params) {
 
   if (!updatedSession) {
     return NextResponse.json({ error: 'Session not found' }, { status: 404 })
-  }
-
-  // Refund: decrement sessionsUsed and record topup transaction
-  if (relationship) {
-    await Balance.findOneAndUpdate(
-      { clientId: clientSession.userId, coachId },
-      {
-        $inc: { sessionsUsed: -1 },
-        $push: {
-          transactions: {
-            type: 'topup',
-            sessions: 1,
-            note: 'Повернення — скасування клієнтом',
-            recordedBy: clientSession.userId,
-          },
-        },
-      },
-      { new: true }
-    )
   }
 
   return NextResponse.json({ session: updatedSession })

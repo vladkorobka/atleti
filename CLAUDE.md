@@ -25,8 +25,8 @@ pnpm build        # turbo build
 ```
 apps/web/app/
   (auth)/       — login, register, role-select
-  (coach)/      — dashboard тренера
-  (client)/     — dashboard клієнта
+  coach/        — dashboard тренера
+  client/       — dashboard клієнта
   api/          — Route Handlers
 packages/
   db/           — Mongoose schemas
@@ -73,3 +73,9 @@ packages/
 - Дизайнер надає Tailwind-макет до реалізації екрану
 - Критик аудитує кожен PR перед merge
 - Агенти ведуть активну дискусію між собою до консенсусу перед merge
+
+## Останні зміни
+- Редагування профілю (ім'я, email, нікнейм, пароль) — `/api/user/profile`
+- Підтвердження запрошення тренера — `PATCH /api/client/coach`
+- Навігація клієнта: додана вкладка "Заняття" (`/client/sessions`)
+- Навігація тренера: прибрана вкладка "Пакети"

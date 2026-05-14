@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { auth } from '@/lib/auth'
 import { ensureDB } from '@/lib/db'
-import { Session } from '@atleti/db'
+import { Session, ClientCoach } from '@atleti/db'
 import type { AtletiSession } from '@atleti/types'
 import { sessionCreateSchema } from '@/lib/validations/coach'
 
@@ -24,7 +24,7 @@ export async function GET(req: NextRequest) {
     query.scheduledAt = { $gte: start, $lt: end }
   }
 
-  const sessions = await Session.find(query).sort({ scheduledAt: 1 })
+  const sessions = await Session.find(query).populate('clientId', 'name nickname').sort({ scheduledAt: 1 })
   return NextResponse.json({ sessions })
 }
 
@@ -42,6 +42,19 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: parsed.error.flatten().fieldErrors }, { status: 400 })
   }
   const { clientId, scheduledAt, duration, type } = parsed.data
+
+  const relationship = await ClientCoach.findOne({
+    clientId: parsed.data.clientId,
+    coachId: coachSession.userId,
+    status: 'active',
+  })
+  if (!relationship) {
+    return NextResponse.json({ error: 'Клієнт не належить до вашого списку' }, { status: 403 })
+  }
+
+  if (new Date(parsed.data.scheduledAt) <= new Date()) {
+    return NextResponse.json({ error: 'Дата заняття має бути в майбутньому' }, { status: 400 })
+  }
 
   const newSession = await Session.create({
     clientId,

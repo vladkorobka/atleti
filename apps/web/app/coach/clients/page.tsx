@@ -5,6 +5,7 @@ import { ClientCoach, CoachProfile } from '@atleti/db'
 import type { AtletiSession } from '@atleti/types'
 import { GlassCard, Avatar, Badge } from '@atleti/ui'
 import InviteButton from './InviteButton'
+import Link from 'next/link'
 
 export default async function ClientsPage() {
   const session = await auth()
@@ -44,7 +45,7 @@ export default async function ClientsPage() {
           {relationships.map((rel: any) => {
             const client = rel.clientId as any
             return (
-              <a key={rel._id.toString()} href={`/clients/${client._id}`}>
+              <Link key={rel._id.toString()} href={`/coach/clients/${client._id}`}>
                 <GlassCard className="flex items-center gap-3">
                   <Avatar name={client.name} src={client.avatar} size="md" />
                   <div className="flex-1 min-w-0">
@@ -53,7 +54,7 @@ export default async function ClientsPage() {
                   </div>
                   <StatusBadge status={rel.status} />
                 </GlassCard>
-              </a>
+              </Link>
             )
           })}
         </div>

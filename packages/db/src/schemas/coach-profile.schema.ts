@@ -6,11 +6,6 @@ const WorkingHoursDaySchema = new Schema(
   { _id: false }
 )
 
-const PackageSchema = new Schema(
-  { name: String, sessions: Number, price: Number, currency: { type: String, default: 'UAH' } },
-  { _id: false }
-)
-
 export const CoachProfileSchema = new Schema<ICoachProfile>({
   userId: { type: Schema.Types.ObjectId, ref: 'User', required: true, unique: true },
   bio: String,
@@ -21,7 +16,6 @@ export const CoachProfileSchema = new Schema<ICoachProfile>({
     sun: WorkingHoursDaySchema,
   },
   cancellationDeadlineHours: { type: Number, default: 24 },
-  packages: [PackageSchema],
   plan: { type: String, enum: ['free', 'pro'], default: 'free' },
   clientLimit: { type: Number, default: 10 },
 })

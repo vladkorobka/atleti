@@ -23,7 +23,7 @@ export default async function ClientDetailPage({ params }: { params: { clientId:
       .limit(10),
   ])
 
-  if (!relationship) redirect('/clients')
+  if (!relationship) redirect('/coach/clients')
 
   const client = relationship.clientId as any
   const sessionsRemaining = (balance?.sessionsTotal ?? 0) - (balance?.sessionsUsed ?? 0)
@@ -31,7 +31,7 @@ export default async function ClientDetailPage({ params }: { params: { clientId:
   return (
     <div className="space-y-4 pt-4">
       <div className="flex items-center gap-3">
-        <Link href="/clients" className="text-gray-500 hover:text-gray-700 text-sm">← Назад</Link>
+        <Link href="/coach/clients" className="text-gray-500 hover:text-gray-700 text-sm">← Назад</Link>
       </div>
 
       <GlassCard className="flex items-center gap-4">

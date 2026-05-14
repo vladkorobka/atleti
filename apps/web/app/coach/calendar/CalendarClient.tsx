@@ -54,6 +54,8 @@ export default function CalendarClient({ clients }: { clients: Client[] }) {
   const [selectedDay, setSelectedDay] = useState<Date | null>(null)
   const [addOpen, setAddOpen] = useState(false)
   const [statusModal, setStatusModal] = useState<Session | null>(null)
+  const [editModal, setEditModal] = useState<Session | null>(null)
+  const [editForm, setEditForm] = useState({ date: '', time: '', duration: '60', type: 'regular' })
   const [form, setForm] = useState({
     clientId: clients[0]?.id ?? '',
     date: '',
@@ -63,14 +65,20 @@ export default function CalendarClient({ clients }: { clients: Client[] }) {
   })
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
+  const [loading, setLoading] = useState(true)
+  const [statusChanging, setStatusChanging] = useState(false)
 
   const loadSessions = useCallback(async () => {
     const monthStr = `${year}-${String(month + 1).padStart(2, '0')}`
     const res = await fetch(`/api/coach/sessions?month=${monthStr}`)
-    if (res.ok) {
-      const data = await res.json()
-      setSessions(data.sessions ?? [])
+    if (!res.ok) {
+      setError('Помилка завантаження занять')
+      setLoading(false)
+      return
     }
+    const data = await res.json()
+    setSessions(data.sessions ?? [])
+    setLoading(false)
   }, [year, month])
 
   useEffect(() => { loadSessions() }, [loadSessions])
@@ -115,14 +123,45 @@ export default function CalendarClient({ clients }: { clients: Client[] }) {
     await loadSessions()
   }
 
+  function openEditModal(s: Session) {
+    const d = new Date(s.scheduledAt)
+    const pad = (n: number) => String(n).padStart(2, '0')
+    const date = `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`
+    const time = `${pad(d.getHours())}:${pad(d.getMinutes())}`
+    setEditForm({ date, time, duration: String(s.duration), type: s.type })
+    setEditModal(s)
+  }
+
+  async function handleEdit(e: React.FormEvent) {
+    e.preventDefault()
+    if (!editModal) return
+    setSaving(true)
+    setError('')
+    const scheduledAt = new Date(`${editForm.date}T${editForm.time}:00`).toISOString()
+    const res = await fetch(`/api/coach/sessions/${editModal._id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ scheduledAt, duration: Number(editForm.duration), type: editForm.type }),
+    })
+    const data = await res.json()
+    setSaving(false)
+    if (!res.ok) { setError(typeof data.error === 'string' ? data.error : 'Помилка'); return }
+    setEditModal(null)
+    await loadSessions()
+  }
+
   async function handleStatusChange(sessionId: string, status: string) {
+    setStatusChanging(true)
     const res = await fetch(`/api/coach/sessions/${sessionId}`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ status }),
     })
+    setStatusChanging(false)
     if (res.ok) { setStatusModal(null); await loadSessions() }
   }
+
+  if (loading) return <div className="pt-4"><p className="text-sm text-gray-400">Завантаження...</p></div>
 
   return (
     <div className="space-y-4 pt-4">
@@ -215,12 +254,20 @@ export default function CalendarClient({ clients }: { clients: Client[] }) {
                         {' · '}{s.duration} хв
                       </p>
                       {s.status === 'scheduled' && (
-                        <button
-                          onClick={() => setStatusModal(s)}
-                          className="text-xs text-gray-500 hover:text-gray-700 underline"
-                        >
-                          Змінити статус
-                        </button>
+                        <div className="flex gap-3">
+                          <button
+                            onClick={() => openEditModal(s)}
+                            className="text-xs text-gray-500 hover:text-gray-700 underline"
+                          >
+                            Редагувати
+                          </button>
+                          <button
+                            onClick={() => setStatusModal(s)}
+                            className="text-xs text-gray-500 hover:text-gray-700 underline"
+                          >
+                            Змінити статус
+                          </button>
+                        </div>
                       )}
                     </GlassCard>
                   )
@@ -280,17 +327,56 @@ export default function CalendarClient({ clients }: { clients: Client[] }) {
           <div className="space-y-2">
             <button
               onClick={() => handleStatusChange(statusModal._id, 'completed')}
-              className="w-full border border-green-300 text-green-700 rounded-md py-2.5 text-sm font-medium hover:bg-green-50 transition-colors"
+              disabled={statusChanging}
+              className={`w-full border border-green-300 text-green-700 rounded-md py-2.5 text-sm font-medium hover:bg-green-50 transition-colors${statusChanging ? ' opacity-50 cursor-not-allowed' : ''}`}
             >
               Позначити як проведене
             </button>
             <button
               onClick={() => handleStatusChange(statusModal._id, 'cancelled')}
-              className="w-full border border-red-300 text-red-700 rounded-md py-2.5 text-sm font-medium hover:bg-red-50 transition-colors"
+              disabled={statusChanging}
+              className={`w-full border border-red-300 text-red-700 rounded-md py-2.5 text-sm font-medium hover:bg-red-50 transition-colors${statusChanging ? ' opacity-50 cursor-not-allowed' : ''}`}
             >
               Скасувати заняття
             </button>
           </div>
+        </GlassModal>
+      )}
+
+      {/* Edit session modal */}
+      {editModal && (
+        <GlassModal open={true} onClose={() => { setEditModal(null); setError('') }} title="Редагувати заняття">
+          <form onSubmit={handleEdit} className="space-y-3">
+            <input
+              type="date" required
+              value={editForm.date} onChange={e => setEditForm(f => ({ ...f, date: e.target.value }))}
+              className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-400"
+            />
+            <input
+              type="time" required
+              value={editForm.time} onChange={e => setEditForm(f => ({ ...f, time: e.target.value }))}
+              className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-400"
+            />
+            <div className="grid grid-cols-2 gap-2">
+              <input
+                type="number" min="15" max="480" required
+                value={editForm.duration} onChange={e => setEditForm(f => ({ ...f, duration: e.target.value }))}
+                placeholder="Тривалість (хв)"
+                className="border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-400"
+              />
+              <select
+                value={editForm.type} onChange={e => setEditForm(f => ({ ...f, type: e.target.value }))}
+                className="border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-400 bg-white"
+              >
+                {SESSION_TYPES.map(t => <option key={t.value} value={t.value}>{t.label}</option>)}
+              </select>
+            </div>
+            {error && <p className="text-xs text-red-500">{error}</p>}
+            <button type="submit" disabled={saving}
+              className="w-full bg-gray-900 text-white rounded-md py-2.5 text-sm font-medium hover:bg-gray-700 disabled:opacity-50">
+              {saving ? 'Збереження...' : 'Зберегти'}
+            </button>
+          </form>
         </GlassModal>
       )}
     </div>

@@ -5,6 +5,7 @@ import { ClientCoach, Balance, Session } from '@atleti/db'
 import type { AtletiSession } from '@atleti/types'
 import { GlassCard, Badge } from '@atleti/ui'
 import Link from 'next/link'
+import { AcceptInviteButton } from '../coach/AcceptInviteButton'
 
 const sessionTypeLabel: Record<string, string> = {
   regular: 'Тренування',
@@ -47,7 +48,6 @@ export default async function ClientDashboard() {
       Session.findOne({
         clientId: user.userId,
         status: 'scheduled',
-        scheduledAt: { $gte: new Date() },
       }).sort({ scheduledAt: 1 }),
     ])
   }
@@ -72,21 +72,26 @@ export default async function ClientDashboard() {
             <p className="text-sm text-gray-500">Статус</p>
             <Badge variant="warning">Очікування підтвердження</Badge>
           </div>
-          <p className="text-sm text-gray-700">
+          <p className="text-sm text-gray-700 mb-3">
             Тренер {coach.name} надіслав вам запрошення
           </p>
+          <AcceptInviteButton />
         </GlassCard>
       )}
 
       {status === 'active' && (
         <>
-          {balance && (
+          {balance ? (
             <GlassCard>
               <p className="text-sm text-gray-500 mb-1">Залишилось занять</p>
               <p className="text-3xl font-semibold text-gray-900">
                 {balance.sessionsTotal - balance.sessionsUsed}
                 <span className="text-base font-normal text-gray-400"> / {balance.sessionsTotal}</span>
               </p>
+            </GlassCard>
+          ) : (
+            <GlassCard>
+              <p className="text-sm text-gray-400">Тренер ще не встановив баланс занять</p>
             </GlassCard>
           )}
 
@@ -110,13 +115,13 @@ export default async function ClientDashboard() {
 
           <div className="grid grid-cols-2 gap-3">
             <Link
-              href="/balance"
+              href="/client/balance"
               className="bg-gray-900 text-white rounded-md px-4 py-2 text-sm font-medium text-center hover:bg-gray-800 transition-colors"
             >
               Баланс
             </Link>
             <Link
-              href="/coach"
+              href="/client/coach"
               className="bg-white/60 backdrop-blur-sm border border-white/40 text-gray-900 rounded-md px-4 py-2 text-sm font-medium text-center hover:bg-white/80 transition-colors"
             >
               Тренер

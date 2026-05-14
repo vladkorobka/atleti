@@ -39,9 +39,23 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: `Досягнуто ліміт клієнтів (${profile?.clientLimit ?? 10})` }, { status: 403 })
   }
 
-  const existing = await ClientCoach.findOne({ clientId: clientUser._id, coachId: coachSession.userId })
+  const existing = await ClientCoach.findOne({
+    clientId: clientUser._id,
+    coachId: coachSession.userId,
+    status: { $in: ['pending', 'active'] },
+  })
   if (existing) {
-    return NextResponse.json({ error: 'Запрошення вже надіслано' }, { status: 409 })
+    return NextResponse.json({ error: 'Запрошення вже надіслано або клієнт вже активний' }, { status: 409 })
+  }
+
+  const terminated = await ClientCoach.findOne({
+    clientId: clientUser._id,
+    coachId: coachSession.userId,
+    status: 'terminated',
+  })
+  if (terminated) {
+    await ClientCoach.updateOne({ _id: terminated._id }, { status: 'pending', invitedAt: new Date() })
+    return NextResponse.json({ ok: true }, { status: 201 })
   }
 
   const invite = await ClientCoach.create({
