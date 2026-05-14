@@ -62,6 +62,9 @@ export const coachBlockSchema = z.object({
     if (!data.startTime) ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'startTime required', path: ['startTime'] })
     if (!data.endTime) ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'endTime required', path: ['endTime'] })
     if (!data.date && !data.recurring) ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'date or recurring required', path: ['date'] })
+    if (data.startTime && data.endTime && data.startTime >= data.endTime) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'startTime must be before endTime', path: ['startTime'] })
+    }
   }
   if (data.type === 'day' && !data.date && !data.recurring) {
     ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'date or recurring required', path: ['date'] })
@@ -72,5 +75,8 @@ export const coachBlockSchema = z.object({
     if (data.dateFrom && data.dateTo && data.dateFrom > data.dateTo) {
       ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'dateFrom must be before dateTo', path: ['dateFrom'] })
     }
+  }
+  if (data.recurring?.type === 'weekly' && !data.recurring.dayOfWeek) {
+    ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'dayOfWeek required for weekly recurring', path: ['recurring', 'dayOfWeek'] })
   }
 })
