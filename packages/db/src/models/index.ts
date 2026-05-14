@@ -6,6 +6,7 @@ import { BalanceSchema } from '../schemas/balance.schema'
 import { SessionSchema } from '../schemas/session.schema'
 import { MessageSchema } from '../schemas/message.schema'
 import { ContentSchema } from '../schemas/content.schema'
+import { CoachBlockSchema } from '../schemas/coach-block.schema'
 
 export const User = mongoose.models.User ?? mongoose.model('User', UserSchema)
 export const CoachProfile = mongoose.models.CoachProfile ?? mongoose.model('CoachProfile', CoachProfileSchema)
@@ -14,3 +15,4 @@ export const Balance = mongoose.models.Balance ?? mongoose.model('Balance', Bala
 export const Session = mongoose.models.Session ?? mongoose.model('Session', SessionSchema)
 export const Message = mongoose.models.Message ?? mongoose.model('Message', MessageSchema)
 export const Content = mongoose.models.Content ?? mongoose.model('Content', ContentSchema)
+export const CoachBlock = mongoose.models.CoachBlock ?? mongoose.model('CoachBlock', CoachBlockSchema)

@@ -117,3 +117,26 @@ export interface AtletiSession {
   email: string
   avatar?: string
 }
+
+export type DowKey = 'sun' | 'mon' | 'tue' | 'wed' | 'thu' | 'fri' | 'sat'
+export type CoachBlockType = 'time' | 'day' | 'vacation'
+export type RecurringType = 'daily' | 'weekly'
+
+export interface ICoachBlockRecurring {
+  type: RecurringType
+  dayOfWeek?: DowKey
+  until?: string  // "2026-12-31"
+}
+
+export interface ICoachBlock {
+  _id: string
+  coachId: string
+  type: CoachBlockType
+  date?: string        // "2026-05-14" — for type='time' | 'day'
+  startTime?: string   // "12:00" — for type='time'
+  endTime?: string     // "13:00" — for type='time'
+  dateFrom?: string    // "2026-07-01" — for type='vacation'
+  dateTo?: string      // "2026-07-14" — for type='vacation'
+  recurring?: ICoachBlockRecurring
+  label?: string
+}
