@@ -219,15 +219,15 @@ export default function CalendarClient({ clients }: { clients: Client[] }) {
       label: blockForm.label || undefined,
     }
     if (blockForm.type === 'vacation') {
-      body.dateFrom = blockForm.dateFrom
-      body.dateTo = blockForm.dateTo
+      body.dateFrom = blockForm.dateFrom || undefined
+      body.dateTo = blockForm.dateTo || undefined
     } else {
       if (!blockForm.recurringEnabled) {
-        body.date = blockForm.date
+        body.date = blockForm.date || undefined
       }
       if (blockForm.type === 'time') {
-        body.startTime = blockForm.startTime
-        body.endTime = blockForm.endTime
+        body.startTime = blockForm.startTime || undefined
+        body.endTime = blockForm.endTime || undefined
       }
       if (blockForm.recurringEnabled) {
         body.recurring = {

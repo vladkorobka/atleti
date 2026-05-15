@@ -6,13 +6,15 @@ const workingHoursDaySchema = z.object({
   slotDuration: z.number().int().min(15).max(240),
 })
 
-const dayKey = z.enum(['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'])
-
 export const coachProfileSchema = z.object({
   bio: z.string().max(1000).optional(),
   specializations: z.array(z.string().max(50)).max(10).optional(),
   cancellationDeadlineHours: z.number().int().min(0).max(168).optional(),
-  workingHours: z.record(dayKey, workingHoursDaySchema).optional(),
+  workingHours: z.object({
+    mon: workingHoursDaySchema, tue: workingHoursDaySchema, wed: workingHoursDaySchema,
+    thu: workingHoursDaySchema, fri: workingHoursDaySchema, sat: workingHoursDaySchema,
+    sun: workingHoursDaySchema,
+  }).partial().optional(),
 })
 
 export const inviteSchema = z.object({
