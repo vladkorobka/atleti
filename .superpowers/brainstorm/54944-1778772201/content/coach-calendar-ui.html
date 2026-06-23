@@ -1,0 +1,85 @@
+<h2>Calendar — вкладка тренера</h2>
+<p class="subtitle">Макет після додавання управління доступністю</p>
+
+<div class="mockup">
+  <div class="mockup-header">📅 Календар тренера</div>
+  <div class="mockup-body">
+
+    <!-- Top buttons -->
+    <div style="display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap">
+      <button class="mock-button" style="font-size:11px;background:#1a1a1a;color:#fff;border:none">⚙️ Робочий графік</button>
+      <button class="mock-button" style="font-size:11px">🚫 Заблокувати</button>
+      <button class="mock-button" style="font-size:11px">+ Додати заняття</button>
+    </div>
+
+    <!-- Working hours summary bar -->
+    <div style="background:#f0f0f0;border-radius:6px;padding:8px 10px;margin-bottom:12px;font-size:11px;color:#555">
+      <strong>Графік:</strong> Пн–Пт 09:00–18:00 · 60 хв &nbsp;|&nbsp; Сб 10:00–15:00 · 60 хв &nbsp;|&nbsp; Нд — вихідний
+    </div>
+
+    <!-- Month nav -->
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
+      <button class="mock-button" style="font-size:11px;padding:2px 8px">‹</button>
+      <strong style="font-size:13px">Травень 2026</strong>
+      <button class="mock-button" style="font-size:11px;padding:2px 8px">›</button>
+    </div>
+
+    <!-- Calendar grid -->
+    <div style="display:grid;grid-template-columns:repeat(7,1fr);gap:2px;text-align:center;font-size:11px">
+      <div style="color:#999;padding:2px">Пн</div><div style="color:#999;padding:2px">Вт</div><div style="color:#999;padding:2px">Ср</div><div style="color:#999;padding:2px">Чт</div><div style="color:#999;padding:2px">Пт</div><div style="color:#999;padding:2px">Сб</div><div style="color:#999;padding:2px">Нд</div>
+
+      <div style="padding:4px"></div><div style="padding:4px"></div><div style="padding:4px"></div><div style="padding:4px"></div><div style="padding:4px"></div><div style="padding:4px"></div><div style="padding:4px;color:#bbb">1</div>
+
+      <div style="padding:4px">2</div>
+      <div style="padding:4px">3</div>
+      <div style="padding:4px">4</div>
+      <div style="padding:4px">5</div>
+      <div style="padding:4px">6</div>
+      <div style="padding:4px">7</div>
+      <div style="padding:4px;color:#bbb">8</div>
+
+      <div style="padding:4px">9</div>
+      <div style="padding:4px">10</div>
+      <div style="padding:4px">11</div>
+      <div style="padding:4px">12</div>
+      <div style="padding:4px">13</div>
+      <!-- Day 14 - has session dot -->
+      <div style="padding:4px;background:#fff3cd;border-radius:4px;position:relative">
+        14
+        <span style="display:block;width:6px;height:6px;border-radius:50%;background:#f59e0b;margin:1px auto 0"></span>
+      </div>
+      <!-- Day 15 - fully blocked -->
+      <div style="padding:4px;background:#fee2e2;border-radius:4px;color:#dc2626">15🚫</div>
+
+      <div style="padding:4px;background:#fef3c7;border-radius:4px">16<span style="display:block;width:6px;height:6px;border-radius:50%;background:#f59e0b;margin:1px auto 0"></span></div>
+      <div style="padding:4px">17</div>
+      <div style="padding:4px">18</div>
+      <div style="padding:4px">19</div>
+      <div style="padding:4px">20</div>
+      <div style="padding:4px">21</div>
+      <div style="padding:4px;color:#bbb">22</div>
+    </div>
+
+    <!-- Legend -->
+    <div style="display:flex;gap:12px;margin-top:10px;font-size:10px;color:#666;flex-wrap:wrap">
+      <span><span style="display:inline-block;width:8px;height:8px;background:#f59e0b;border-radius:50%;margin-right:3px"></span>є заняття</span>
+      <span><span style="display:inline-block;width:8px;height:8px;background:#fee2e2;border-radius:2px;margin-right:3px"></span>заблоковано</span>
+      <span><span style="display:inline-block;width:8px;height:8px;background:#f0f0f0;border-radius:2px;margin-right:3px"></span>вихідний (не в графіку)</span>
+    </div>
+
+    <!-- Selected day panel -->
+    <div style="margin-top:14px;border-top:1px solid #eee;padding-top:10px">
+      <div style="font-size:12px;font-weight:600;margin-bottom:8px">14 травня — слоти дня</div>
+      <div style="display:grid;gap:4px;font-size:11px">
+        <div style="display:flex;justify-content:space-between;padding:4px 8px;background:#f9f9f9;border-radius:4px"><span>09:00</span><span style="color:#22c55e">Вільно</span></div>
+        <div style="display:flex;justify-content:space-between;padding:4px 8px;background:#fef9c3;border-radius:4px"><span>10:00</span><span style="color:#d97706">Іванов П. · Тренування</span></div>
+        <div style="display:flex;justify-content:space-between;padding:4px 8px;background:#fee2e2;border-radius:4px"><span>12:00</span><span style="color:#dc2626">🚫 Обід (recurring)</span></div>
+        <div style="display:flex;justify-content:space-between;padding:4px 8px;background:#f9f9f9;border-radius:4px"><span>13:00</span><span style="color:#22c55e">Вільно</span></div>
+        <div style="display:flex;justify-content:space-between;padding:4px 8px;background:#f9f9f9;border-radius:4px"><span>14:00</span><span style="color:#22c55e">Вільно</span></div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<p class="subtitle" style="margin-top:16px">Чи влаштовує такий макет? Або є побажання щодо змін?</p>

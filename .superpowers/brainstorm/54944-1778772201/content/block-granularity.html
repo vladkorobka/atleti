@@ -1,0 +1,38 @@
+<h2>Як тренер блокує час?</h2>
+<p class="subtitle">Вибери рівень гранулярності блокування</p>
+
+<div class="options">
+  <div class="option" data-choice="a" onclick="toggleSelect(this)">
+    <div class="letter">A</div>
+    <div class="content">
+      <h3>Діапазон часу в межах дня</h3>
+      <p>Тренер натискає на день → вказує "від" і "до" → ці слоти стають заблокованими. Наприклад: заблокувати 12:00–13:00 (обід). Можна додати кілька блоків на один день.</p>
+      <div class="mockup" style="margin-top:8px">
+        <div class="mockup-header">Приклад: блок на 14 травня</div>
+        <div class="mockup-body" style="font-size:12px;line-height:1.8">
+          🔴 12:00 – 13:00 &nbsp;<span style="color:#999">Обідня перерва</span><br>
+          🔴 18:00 – 19:00 &nbsp;<span style="color:#999">Особиста справа</span><br>
+          <button class="mock-button" style="font-size:11px;margin-top:6px">+ Додати блок</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="option" data-choice="b" onclick="toggleSelect(this)">
+    <div class="letter">B</div>
+    <div class="content">
+      <h3>Цілий день + діапазон часу</h3>
+      <p>Окрім блокування часового діапазону, можна заблокувати весь день одним кліком (вихідний, свято, відпустка). Для відпустки — вибрати діапазон дат.</p>
+      <div class="mockup" style="margin-top:8px">
+        <div class="mockup-header">Приклад</div>
+        <div class="mockup-body" style="font-size:12px;line-height:1.8">
+          <div style="display:flex;gap:8px;flex-wrap:wrap">
+            <button class="mock-button" style="font-size:11px">🚫 Заблокувати день</button>
+            <button class="mock-button" style="font-size:11px">🗓 Відпустка (діапазон)</button>
+            <button class="mock-button" style="font-size:11px">⏰ Блок часу</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
