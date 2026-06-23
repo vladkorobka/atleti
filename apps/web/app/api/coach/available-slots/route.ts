@@ -61,10 +61,11 @@ export async function GET(req: NextRequest) {
     status: 'scheduled',
   }).select('scheduledAt')
 
+  // Заняття зберігаються як UTC wall-clock — читаємо в UTC, щоб слоти співпадали
   const bookedTimes = new Set(
     bookedSessions.map(s => {
       const d = new Date(s.scheduledAt)
-      return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`
+      return `${String(d.getUTCHours()).padStart(2, '0')}:${String(d.getUTCMinutes()).padStart(2, '0')}`
     })
   )
 

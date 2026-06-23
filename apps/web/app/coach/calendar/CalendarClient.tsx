@@ -1,7 +1,7 @@
 'use client'
 import { useState, useEffect, useCallback } from 'react'
-import { GlassCard, GlassModal, Badge } from '@atleti/ui'
-import { generateSlots, isDayBlocked, getSlotBlock } from '@/lib/slot-utils'
+import { GlassCard, GlassModal, Badge, TimePicker, DatePicker } from '@atleti/ui'
+import { isDayBlocked, getTimeBlocksForDate } from '@/lib/slot-utils'
 import type { ICoachBlock, DowKey, IWorkingHoursDay } from '@atleti/types'
 
 interface Client { id: string; name: string; nickname: string }
@@ -26,6 +26,13 @@ const STATUS_LABELS: Record<string, { label: string; variant: 'default' | 'succe
   scheduled: { label: 'Заплановано', variant: 'warning' },
   completed: { label: 'Проведено', variant: 'success' },
   cancelled: { label: 'Скасовано', variant: 'danger' },
+}
+
+const TYPE_DOT: Record<string, string> = {
+  regular: 'bg-atleti-slate',
+  split: 'bg-amber-400',
+  online: 'bg-blue-400',
+  consultation: 'bg-emerald-400',
 }
 
 const DAYS_UA = ['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Нд']
@@ -85,6 +92,32 @@ function getMonthGrid(year: number, month: number): (Date | null)[] {
 function dateStr(d: Date): string {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
 }
+
+function toMin(t: string): number {
+  const [h, m] = t.split(':').map(Number)
+  return h * 60 + m
+}
+
+function fmtMin(min: number): string {
+  return `${String(Math.floor(min / 60)).padStart(2, '0')}:${String(min % 60).padStart(2, '0')}`
+}
+
+function blockSummary(b: ICoachBlock): string {
+  const rec = b.recurring ? (b.recurring.type === 'daily' ? ' · щодня' : ' · щотижня') : ''
+  if (b.type === 'vacation') return `Відпустка · ${b.dateFrom}–${b.dateTo}`
+  if (b.type === 'day') return `День${b.date ? ` · ${b.date}` : ''}${rec}`
+  return `${b.startTime}–${b.endTime}${b.date ? ` · ${b.date}` : ''}${rec}`
+}
+
+type AgendaEntry =
+  | { kind: 'free'; startMin: number; endMin: number }
+  | { kind: 'session'; startMin: number; endMin: number; session: Session }
+  | { kind: 'block'; startMin: number; endMin: number; block: ICoachBlock }
+
+type DayAgenda =
+  | { type: 'off' }
+  | { type: 'blocked' }
+  | { type: 'ok'; entries: AgendaEntry[] }
 
 export default function CalendarClient({ clients }: { clients: Client[] }) {
   const now = new Date()
@@ -269,10 +302,12 @@ export default function CalendarClient({ clients }: { clients: Client[] }) {
 
   async function handleAddSession(e: React.FormEvent) {
     e.preventDefault()
+    if (!form.date || !form.time) { setError('Оберіть дату і час'); return }
     setSaving(true)
     setError('')
     try {
-      const scheduledAt = new Date(`${form.date}T${form.time}:00`).toISOString()
+      // Зберігаємо введений wall-clock як UTC (10:00 → ...T10:00:00.000Z)
+      const scheduledAt = `${form.date}T${form.time}:00.000Z`
       const res = await fetch('/api/coach/sessions', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -293,9 +328,10 @@ export default function CalendarClient({ clients }: { clients: Client[] }) {
     const d = new Date(s.scheduledAt)
     const pad = (n: number) => String(n).padStart(2, '0')
     setError('')
+    // UTC wall-clock — читаємо ті самі компоненти, що зберігали
     setEditForm({
-      date: `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`,
-      time: `${pad(d.getHours())}:${pad(d.getMinutes())}`,
+      date: `${d.getUTCFullYear()}-${pad(d.getUTCMonth() + 1)}-${pad(d.getUTCDate())}`,
+      time: `${pad(d.getUTCHours())}:${pad(d.getUTCMinutes())}`,
       duration: String(s.duration),
       type: s.type,
     })
@@ -305,10 +341,11 @@ export default function CalendarClient({ clients }: { clients: Client[] }) {
   async function handleEdit(e: React.FormEvent) {
     e.preventDefault()
     if (!editModal) return
+    if (!editForm.date || !editForm.time) { setError('Оберіть дату і час'); return }
     setSaving(true)
     setError('')
     try {
-      const scheduledAt = new Date(`${editForm.date}T${editForm.time}:00`).toISOString()
+      const scheduledAt = `${editForm.date}T${editForm.time}:00.000Z`
       const res = await fetch(`/api/coach/sessions/${editModal._id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
@@ -349,39 +386,87 @@ export default function CalendarClient({ clients }: { clients: Client[] }) {
   }
 
   const grid = getMonthGrid(year, month)
+  // Заняття зберігаються як UTC wall-clock → день рахуємо в UTC.
+  // Скасовані не позначаємо — їхній час вважається вільним.
+  const sessionUTCKey = (s: Session) => {
+    const d = new Date(s.scheduledAt)
+    return `${d.getUTCFullYear()}-${d.getUTCMonth()}-${d.getUTCDate()}`
+  }
   const daysWithSessions = new Set(
-    sessions.map(s => {
-      const d = new Date(s.scheduledAt)
-      return `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`
-    })
+    sessions.filter(s => s.status !== 'cancelled').map(sessionUTCKey)
   )
   const dayKey = (d: Date) => `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`
 
+  // Заняття по днях (для десктоп-чипів), відсортовані за часом
+  const sessionsByDay = new Map<string, Session[]>()
+  for (const s of sessions) {
+    if (s.status === 'cancelled') continue
+    const key = sessionUTCKey(s)
+    const arr = sessionsByDay.get(key) ?? []
+    arr.push(s)
+    sessionsByDay.set(key, arr)
+  }
+  for (const arr of sessionsByDay.values()) {
+    arr.sort((a, b) => new Date(a.scheduledAt).getTime() - new Date(b.scheduledAt).getTime())
+  }
+
   const selectedDaySessions = selectedDay
-    ? sessions.filter(s => isSameDay(new Date(s.scheduledAt), selectedDay))
+    ? sessions.filter(s => sessionUTCKey(s) === dayKey(selectedDay))
     : []
 
-  function buildDayTimeline() {
-    if (!selectedDay) return []
+  function openAddAt(startMin: number, slotDuration: number) {
+    if (!selectedDay) return
+    setError('')
+    setForm({
+      clientId: clients[0]?.id ?? '',
+      date: dateStr(selectedDay),
+      time: fmtMin(startMin),
+      duration: String(slotDuration),
+      type: 'regular',
+    })
+    setAddOpen(true)
+  }
+
+  function buildDayAgenda(): DayAgenda {
+    if (!selectedDay) return { type: 'off' }
     const ds = dateStr(selectedDay)
     const dowKey = DOW_KEYS[selectedDay.getDay()] as DowKey
     const dayHours = workingHours[dowKey]
-    if (!dayHours) return []
-    const daySlots = generateSlots(dayHours.start, dayHours.end, dayHours.slotDuration)
-    return daySlots.map(slot => {
-      const [h, m] = slot.split(':').map(Number)
-      const session = selectedDaySessions.find(s => {
-        const sd = new Date(s.scheduledAt)
-        return sd.getHours() === h && sd.getMinutes() === m
-      })
-      const block = getSlotBlock(blocks, slot, ds, dowKey, dayHours.slotDuration)
-      return { slot, session, block }
-    })
+    if (!dayHours) return { type: 'off' }
+    if (isDayBlocked(blocks, ds, dowKey)) return { type: 'blocked' }
+
+    const workStart = toMin(dayHours.start)
+    const workEnd = toMin(dayHours.end)
+
+    const occ: AgendaEntry[] = []
+    for (const s of selectedDaySessions) {
+      if (s.status === 'cancelled') continue
+      const d = new Date(s.scheduledAt)
+      const startMin = d.getUTCHours() * 60 + d.getUTCMinutes()
+      occ.push({ kind: 'session', startMin, endMin: startMin + s.duration, session: s })
+    }
+    for (const b of getTimeBlocksForDate(blocks, ds, dowKey)) {
+      if (!b.startTime || !b.endTime) continue
+      occ.push({ kind: 'block', startMin: toMin(b.startTime), endMin: toMin(b.endTime), block: b })
+    }
+    occ.sort((a, b) => a.startMin - b.startMin || a.endMin - b.endMin)
+
+    const entries: AgendaEntry[] = []
+    let cursor = workStart
+    for (const e of occ) {
+      if (e.startMin > cursor) entries.push({ kind: 'free', startMin: cursor, endMin: e.startMin })
+      entries.push(e)
+      cursor = Math.max(cursor, e.endMin)
+    }
+    if (cursor < workEnd) entries.push({ kind: 'free', startMin: cursor, endMin: workEnd })
+    return { type: 'ok', entries }
   }
 
   if (loading) return <div className="pt-4"><p className="text-sm text-gray-400">Завантаження...</p></div>
 
-  const timeline = buildDayTimeline()
+  const agenda = buildDayAgenda()
+  const selectedDayHours = selectedDay ? workingHours[DOW_KEYS[selectedDay.getDay()] as DowKey] : undefined
+  const selectedSlotDuration = selectedDayHours?.slotDuration ?? 60
 
   return (
     <div className="space-y-4 pt-4">
@@ -389,35 +474,35 @@ export default function CalendarClient({ clients }: { clients: Client[] }) {
       <div className="flex flex-wrap gap-2">
         <button
           onClick={openScheduleModal}
-          className="bg-white border border-gray-200 text-gray-700 rounded-md px-3 py-2 text-sm font-medium hover:bg-gray-50 transition-colors"
+          className="bg-atleti-surface border border-atleti-line text-atleti-ink rounded-md px-3 py-2 text-sm font-medium shadow-soft hover:bg-atleti-mist/40 transition-colors"
         >
           ⚙️ Робочий графік
         </button>
         <button
           onClick={() => { setError(''); setBlockOpen(true) }}
-          className="bg-white border border-gray-200 text-gray-700 rounded-md px-3 py-2 text-sm font-medium hover:bg-gray-50 transition-colors"
+          className="bg-atleti-surface border border-atleti-line text-atleti-ink rounded-md px-3 py-2 text-sm font-medium shadow-soft hover:bg-atleti-mist/40 transition-colors"
         >
           🚫 Заблокувати
         </button>
         <button
           onClick={() => { setError(''); setAddOpen(true) }}
           disabled={clients.length === 0}
-          className="ml-auto bg-gray-900 text-white rounded-md px-3 py-2 text-sm font-medium hover:bg-gray-700 transition-colors disabled:opacity-40"
+          className="ml-auto bg-atleti-ink text-white rounded-md px-3 py-2 text-sm font-medium shadow-soft hover:bg-atleti-ink/90 transition-colors disabled:opacity-40"
         >
           {clients.length === 0 ? 'Немає клієнтів' : '+ Заняття'}
         </button>
       </div>
 
       {/* Working hours summary */}
-      <div className="text-xs text-gray-500 bg-gray-50 rounded-md px-3 py-2 leading-relaxed">
+      <div className="text-xs text-atleti-slate bg-atleti-surface border border-atleti-line rounded-md px-3 py-2 leading-relaxed">
         {workingHoursSummary(workingHours)}
       </div>
 
       {/* Month nav */}
       <div className="flex items-center justify-between">
-        <button onClick={prevMonth} className="p-2 rounded-md hover:bg-gray-100 transition-colors text-gray-600">&lsaquo;</button>
-        <h1 className="text-lg font-semibold text-gray-900">{MONTHS_UA[month]} {year}</h1>
-        <button onClick={nextMonth} className="p-2 rounded-md hover:bg-gray-100 transition-colors text-gray-600">&rsaquo;</button>
+        <button onClick={prevMonth} className="p-2 rounded-md hover:bg-atleti-mist/40 transition-colors text-atleti-slate">&lsaquo;</button>
+        <h1 className="text-lg font-display font-semibold text-atleti-ink">{MONTHS_UA[month]} {year}</h1>
+        <button onClick={nextMonth} className="p-2 rounded-md hover:bg-atleti-mist/40 transition-colors text-atleti-slate">&rsaquo;</button>
       </div>
 
       {/* Layout */}
@@ -427,7 +512,7 @@ export default function CalendarClient({ clients }: { clients: Client[] }) {
           <GlassCard className="p-2">
             <div className="grid grid-cols-7 mb-2">
               {DAYS_UA.map(d => (
-                <div key={d} className="text-center text-xs font-medium text-gray-400 py-1">{d}</div>
+                <div key={d} className="text-center text-xs font-medium text-atleti-muted py-1">{d}</div>
               ))}
             </div>
             <div className="grid grid-cols-7 gap-1">
@@ -440,25 +525,50 @@ export default function CalendarClient({ clients }: { clients: Client[] }) {
                 const dowKey = DOW_KEYS[day.getDay()] as DowKey
                 const fullyBlocked = isDayBlocked(blocks, ds, dowKey)
                 const isWorkingDay = !!workingHours[dowKey]
+                const daySessions = sessionsByDay.get(dayKey(day)) ?? []
+                const extra = daySessions.length - 3
                 return (
                   <button
                     key={i}
                     onClick={() => setSelectedDay(isSelected ? null : day)}
                     className={`
-                      relative flex flex-col items-center py-2 rounded-md text-sm transition-colors
-                      ${isSelected ? 'bg-gray-900 text-white'
-                        : fullyBlocked ? 'bg-red-50 text-red-400'
-                        : isToday ? 'bg-gray-100 text-gray-900 font-semibold'
-                        : !isWorkingDay ? 'text-gray-300'
-                        : 'text-gray-700 hover:bg-gray-50'}
+                      relative flex flex-col items-center lg:items-stretch text-left rounded-md text-sm transition-colors
+                      p-1 lg:p-1.5 min-h-0 lg:min-h-[6.5rem]
+                      ${isSelected ? 'ring-2 ring-atleti-slate' : ''}
+                      ${fullyBlocked ? 'bg-red-50 text-red-400'
+                        : isToday ? 'bg-atleti-mist/50 font-semibold text-atleti-ink'
+                        : !isWorkingDay ? 'text-atleti-muted hover:bg-atleti-mist/30'
+                        : 'text-atleti-ink hover:bg-atleti-mist/30'}
                     `}
                   >
-                    {day.getDate()}
-                    {fullyBlocked && !isSelected && (
-                      <span className="text-xs leading-none">🚫</span>
-                    )}
-                    {!fullyBlocked && hasSessions && (
-                      <span className={`w-1 h-1 rounded-full mt-0.5 ${isSelected ? 'bg-white' : 'bg-gray-400'}`} />
+                    <span className="lg:self-start leading-none py-1 lg:py-0">{day.getDate()}</span>
+
+                    {/* Мобільний індикатор */}
+                    {fullyBlocked ? (
+                      <span className="lg:hidden text-xs leading-none">🚫</span>
+                    ) : hasSessions ? (
+                      <span className="lg:hidden w-1 h-1 rounded-full mt-0.5 bg-atleti-slate" />
+                    ) : null}
+
+                    {/* Десктоп-чипи */}
+                    {!fullyBlocked && daySessions.length > 0 && (
+                      <div className="hidden lg:flex lg:flex-col gap-0.5 mt-1 w-full">
+                        {daySessions.slice(0, 3).map(s => {
+                          const d = new Date(s.scheduledAt)
+                          const time = `${String(d.getUTCHours()).padStart(2, '0')}:${String(d.getUTCMinutes()).padStart(2, '0')}`
+                          const name = typeof s.clientId === 'object' ? s.clientId.name : ''
+                          return (
+                            <span key={s._id} className="flex items-center gap-1 text-[11px] text-atleti-ink/80 bg-atleti-bg rounded px-1 py-0.5 min-w-0">
+                              <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${TYPE_DOT[s.type] ?? 'bg-atleti-muted'}`} />
+                              <span className="font-medium shrink-0">{time}</span>
+                              <span className="truncate text-atleti-slate">{name}</span>
+                            </span>
+                          )
+                        })}
+                        {extra > 0 && (
+                          <span className="text-[10px] text-atleti-slate pl-1">ще {extra}</span>
+                        )}
+                      </div>
                     )}
                   </button>
                 )
@@ -479,57 +589,82 @@ export default function CalendarClient({ clients }: { clients: Client[] }) {
               </button>
             </div>
 
-            {timeline.length === 0 ? (
+            {agenda.type === 'off' ? (
               <GlassCard>
                 <p className="text-sm text-gray-400 text-center py-4">Не робочий день</p>
               </GlassCard>
+            ) : agenda.type === 'blocked' ? (
+              <GlassCard>
+                <p className="text-sm text-red-400 text-center py-4">🚫 День заблоковано</p>
+              </GlassCard>
             ) : (
-              <div className="space-y-1">
-                {timeline.map(({ slot, session, block }) => (
-                  <GlassCard key={slot} className="py-2 px-3">
-                    <div className="flex items-center justify-between gap-2">
-                      <span className="text-xs font-mono text-gray-500 shrink-0">{slot}</span>
-                      {block ? (
-                        <div className="flex items-center gap-1 flex-1 min-w-0">
-                          <span className="text-xs text-red-500 truncate">
-                            🚫 {block.label ?? 'Заблоковано'}
-                            {block.recurring && <span className="ml-1 text-gray-400">(recurring)</span>}
+              <div className="space-y-1.5">
+                {agenda.entries.map((e, i) => {
+                  const time = `${fmtMin(e.startMin)}–${fmtMin(e.endMin)}`
+                  if (e.kind === 'free') {
+                    return (
+                      <button
+                        key={i}
+                        type="button"
+                        onClick={() => openAddAt(e.startMin, selectedSlotDuration)}
+                        disabled={clients.length === 0}
+                        className="w-full flex items-center gap-2 rounded-md border border-dashed border-gray-300 px-3 py-2 text-left hover:bg-gray-50 transition-colors disabled:opacity-50"
+                      >
+                        <span className="text-xs font-mono text-gray-400 shrink-0">{time}</span>
+                        <span className="text-xs text-green-600 flex-1">Вільно</span>
+                        <span className="text-gray-400 text-base leading-none shrink-0">+</span>
+                      </button>
+                    )
+                  }
+                  if (e.kind === 'block') {
+                    return (
+                      <GlassCard key={i} className="py-2 px-3">
+                        <div className="flex items-center justify-between gap-2">
+                          <span className="text-xs font-mono text-gray-500 shrink-0">{time}</span>
+                          <span className="text-xs text-red-500 truncate flex-1">
+                            🚫 {e.block.label ?? 'Заблоковано'}
+                            {e.block.recurring && <span className="ml-1 text-gray-400">(повтор.)</span>}
                           </span>
                           <button
-                            onClick={() => handleDeleteBlock(block._id)}
+                            onClick={() => handleDeleteBlock(e.block._id)}
                             className="shrink-0 text-xs text-gray-400 hover:text-red-500 transition-colors"
                             title="Видалити блок"
                           >
                             ✕
                           </button>
                         </div>
-                      ) : session ? (
-                        <div className="flex items-center justify-between flex-1 min-w-0">
-                          <span className="text-xs text-gray-700 truncate">
-                            {typeof session.clientId === 'object' ? session.clientId.name : '—'}
-                          </span>
-                          <div className="flex gap-2 shrink-0">
-                            {session.status === 'scheduled' && (
-                              <>
-                                <button onClick={() => openEditModal(session)} className="text-xs text-gray-400 hover:text-gray-600 underline">
-                                  ред.
-                                </button>
-                                <button onClick={() => { setError(''); setStatusModal(session) }} className="text-xs text-gray-400 hover:text-gray-600 underline">
-                                  статус
-                                </button>
-                              </>
-                            )}
-                            <Badge variant={STATUS_LABELS[session.status]?.variant ?? 'default'}>
-                              {STATUS_LABELS[session.status]?.label ?? session.status}
-                            </Badge>
-                          </div>
+                      </GlassCard>
+                    )
+                  }
+                  const s = e.session
+                  const typeLabel = SESSION_TYPES.find(t => t.value === s.type)?.label ?? s.type
+                  return (
+                    <GlassCard key={i} className="py-2 px-3">
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="text-xs font-mono text-gray-500 shrink-0">{time}</span>
+                        <span className="text-xs text-gray-700 truncate flex-1">
+                          {typeof s.clientId === 'object' ? s.clientId.name : '—'}
+                          <span className="text-gray-400"> · {typeLabel}</span>
+                        </span>
+                        <div className="flex gap-2 shrink-0 items-center">
+                          {s.status === 'scheduled' && (
+                            <>
+                              <button onClick={() => openEditModal(s)} className="text-xs text-gray-400 hover:text-gray-600 underline">
+                                ред.
+                              </button>
+                              <button onClick={() => { setError(''); setStatusModal(s) }} className="text-xs text-gray-400 hover:text-gray-600 underline">
+                                статус
+                              </button>
+                            </>
+                          )}
+                          <Badge variant={STATUS_LABELS[s.status]?.variant ?? 'default'}>
+                            {STATUS_LABELS[s.status]?.label ?? s.status}
+                          </Badge>
                         </div>
-                      ) : (
-                        <span className="text-xs text-green-600">Вільно</span>
-                      )}
-                    </div>
-                  </GlassCard>
-                ))}
+                      </div>
+                    </GlassCard>
+                  )
+                })}
               </div>
             )}
           </div>
@@ -543,7 +678,7 @@ export default function CalendarClient({ clients }: { clients: Client[] }) {
             const d = scheduleForm[key]
             return (
               <div key={key} className="space-y-1">
-                <div className="flex items-center gap-2">
+                <div className="flex flex-wrap items-center gap-2">
                   <input
                     type="checkbox"
                     id={`day-${key}`}
@@ -551,21 +686,19 @@ export default function CalendarClient({ clients }: { clients: Client[] }) {
                     onChange={e => setScheduleForm(f => ({ ...f, [key]: { ...f[key], enabled: e.target.checked } }))}
                     className="rounded"
                   />
-                  <label htmlFor={`day-${key}`} className="text-sm font-medium text-gray-700 w-28">{label}</label>
+                  <label htmlFor={`day-${key}`} className="text-sm font-medium text-atleti-ink w-24">{label}</label>
                   {d.enabled && (
                     <div className="flex gap-1 items-center text-xs text-gray-500">
-                      <input
-                        type="time"
+                      <TimePicker
                         value={d.start}
-                        onChange={e => setScheduleForm(f => ({ ...f, [key]: { ...f[key], start: e.target.value } }))}
-                        className="border border-gray-300 rounded px-1 py-0.5 text-xs w-20 focus:outline-none focus:ring-1 focus:ring-gray-400"
+                        onChange={v => setScheduleForm(f => ({ ...f, [key]: { ...f[key], start: v } }))}
+                        className="w-20"
                       />
                       <span>–</span>
-                      <input
-                        type="time"
+                      <TimePicker
                         value={d.end}
-                        onChange={e => setScheduleForm(f => ({ ...f, [key]: { ...f[key], end: e.target.value } }))}
-                        className="border border-gray-300 rounded px-1 py-0.5 text-xs w-20 focus:outline-none focus:ring-1 focus:ring-gray-400"
+                        onChange={v => setScheduleForm(f => ({ ...f, [key]: { ...f[key], end: v } }))}
+                        className="w-20"
                       />
                       <input
                         type="number"
@@ -573,7 +706,7 @@ export default function CalendarClient({ clients }: { clients: Client[] }) {
                         value={d.slotDuration}
                         onChange={e => setScheduleForm(f => ({ ...f, [key]: { ...f[key], slotDuration: e.target.value } }))}
                         className="border border-gray-300 rounded px-1 py-0.5 text-xs w-14 focus:outline-none focus:ring-1 focus:ring-gray-400"
-                        title="Тривалість слоту (хв)"
+                        title="Слот, хв — крок бронювання для клієнта"
                       />
                       <span>хв</span>
                     </div>
@@ -582,6 +715,10 @@ export default function CalendarClient({ clients }: { clients: Client[] }) {
               </div>
             )
           })}
+          <p className="text-xs text-gray-400 leading-relaxed">
+            Останнє поле <span className="font-medium text-gray-500">«Слот, хв»</span> — крок часу,
+            з яким клієнт бачить вільні години для бронювання (напр. 60 хв).
+          </p>
           {error && <p className="text-xs text-red-500">{error}</p>}
           <button type="submit" disabled={saving}
             className="w-full bg-gray-900 text-white rounded-md py-2.5 text-sm font-medium hover:bg-gray-700 disabled:opacity-50">
@@ -613,15 +750,14 @@ export default function CalendarClient({ clients }: { clients: Client[] }) {
 
           {blockForm.type === 'vacation' ? (
             <>
-              <input type="date" required value={blockForm.dateFrom}
-                onChange={e => setBlockForm(f => ({ ...f, dateFrom: e.target.value }))}
+              <DatePicker value={blockForm.dateFrom}
+                onChange={v => setBlockForm(f => ({ ...f, dateFrom: v }))}
                 placeholder="Від"
-                className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-400"
               />
-              <input type="date" required value={blockForm.dateTo}
-                onChange={e => setBlockForm(f => ({ ...f, dateTo: e.target.value }))}
+              <DatePicker value={blockForm.dateTo}
+                onChange={v => setBlockForm(f => ({ ...f, dateTo: v }))}
+                min={blockForm.dateFrom || undefined}
                 placeholder="До"
-                className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-400"
               />
             </>
           ) : (
@@ -660,30 +796,29 @@ export default function CalendarClient({ clients }: { clients: Client[] }) {
                       ))}
                     </select>
                   )}
-                  <input type="date" value={blockForm.recurringUntil}
-                    onChange={e => setBlockForm(f => ({ ...f, recurringUntil: e.target.value }))}
+                  <DatePicker value={blockForm.recurringUntil}
+                    onChange={v => setBlockForm(f => ({ ...f, recurringUntil: v }))}
                     min={new Date().toISOString().slice(0, 10)}
                     placeholder="До дати (необов'язково)"
-                    className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-400"
                   />
                 </div>
               ) : (
-                <input type="date" required value={blockForm.date}
-                  onChange={e => setBlockForm(f => ({ ...f, date: e.target.value }))}
-                  className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-400"
+                <DatePicker value={blockForm.date}
+                  onChange={v => setBlockForm(f => ({ ...f, date: v }))}
+                  placeholder="Оберіть дату"
                 />
               )}
 
               {blockForm.type === 'time' && (
-                <div className="flex gap-2">
-                  <input type="time" required value={blockForm.startTime}
-                    onChange={e => setBlockForm(f => ({ ...f, startTime: e.target.value }))}
-                    className="flex-1 border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-400"
+                <div className="flex gap-2 items-center">
+                  <TimePicker value={blockForm.startTime}
+                    onChange={v => setBlockForm(f => ({ ...f, startTime: v }))}
+                    className="flex-1"
                   />
                   <span className="self-center text-gray-400">–</span>
-                  <input type="time" required value={blockForm.endTime}
-                    onChange={e => setBlockForm(f => ({ ...f, endTime: e.target.value }))}
-                    className="flex-1 border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-400"
+                  <TimePicker value={blockForm.endTime}
+                    onChange={v => setBlockForm(f => ({ ...f, endTime: v }))}
+                    className="flex-1"
                   />
                 </div>
               )}
@@ -703,6 +838,28 @@ export default function CalendarClient({ clients }: { clients: Client[] }) {
             {saving ? 'Збереження...' : 'Заблокувати'}
           </button>
         </form>
+
+        {blocks.length > 0 && (
+          <div className="mt-4 border-t border-gray-200 pt-3 space-y-1.5">
+            <p className="text-xs font-medium text-gray-500">Мої блокування</p>
+            {blocks.map(b => (
+              <div key={b._id} className="flex items-center justify-between gap-2 bg-gray-50 rounded-md px-2.5 py-1.5">
+                <span className="text-xs text-gray-700 truncate">
+                  {b.label && <span className="font-medium">{b.label} · </span>}
+                  {blockSummary(b)}
+                </span>
+                <button
+                  type="button"
+                  onClick={() => handleDeleteBlock(b._id)}
+                  className="shrink-0 text-xs text-gray-400 hover:text-red-500 transition-colors"
+                  title="Видалити"
+                >
+                  ✕
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
       </GlassModal>
 
       {/* Add session modal */}
@@ -712,10 +869,9 @@ export default function CalendarClient({ clients }: { clients: Client[] }) {
             className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-400 bg-white">
             {clients.map(c => <option key={c.id} value={c.id}>{c.name} (@{c.nickname})</option>)}
           </select>
-          <input type="date" required value={form.date} onChange={e => setForm(f => ({ ...f, date: e.target.value }))}
-            className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-400" />
-          <input type="time" required value={form.time} onChange={e => setForm(f => ({ ...f, time: e.target.value }))}
-            className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-400" />
+          <DatePicker value={form.date} onChange={v => setForm(f => ({ ...f, date: v }))}
+            min={new Date().toISOString().slice(0, 10)} placeholder="Оберіть дату" />
+          <TimePicker value={form.time} onChange={v => setForm(f => ({ ...f, time: v }))} />
           <div className="grid grid-cols-2 gap-2">
             <input type="number" min="15" max="480" value={form.duration}
               onChange={e => setForm(f => ({ ...f, duration: e.target.value }))}
@@ -755,10 +911,9 @@ export default function CalendarClient({ clients }: { clients: Client[] }) {
       {editModal && (
         <GlassModal open={true} onClose={() => { setEditModal(null); setError('') }} title="Редагувати заняття">
           <form onSubmit={handleEdit} className="space-y-3">
-            <input type="date" required value={editForm.date} onChange={e => setEditForm(f => ({ ...f, date: e.target.value }))}
-              className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-400" />
-            <input type="time" required value={editForm.time} onChange={e => setEditForm(f => ({ ...f, time: e.target.value }))}
-              className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-400" />
+            <DatePicker value={editForm.date} onChange={v => setEditForm(f => ({ ...f, date: v }))}
+              placeholder="Оберіть дату" />
+            <TimePicker value={editForm.time} onChange={v => setEditForm(f => ({ ...f, time: v }))} />
             <div className="grid grid-cols-2 gap-2">
               <input type="number" min="15" max="480" required value={editForm.duration}
                 onChange={e => setEditForm(f => ({ ...f, duration: e.target.value }))}

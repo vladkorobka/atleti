@@ -40,11 +40,13 @@ packages/
 - `client` — клієнт: чекає invite, бронює заняття, переглядає контент
 
 ## Дизайн
-- Apple / Liquid Glass стиль
+- Повітряний мʼякий стиль (light/airy), мінімальні заокруглення, майже невидимі межі
 - Mobile First (< 768px основний)
-- Glass: `backdrop-blur` + `bg-white/60`, blur-sm / blur-lg
-- Радіуси: `rounded-md`
-- Компоненти: `packages/ui` — GlassCard, GlassModal, CalendarGrid, VideoPlayer тощо
+- Токени (`apps/web/tailwind.config.ts`): `colors.atleti` (bg #EFF2F9, surface, line/mist #E4EBF1, muted #B5BFC6, slate #6E7F8D, ink #2A3439); `shadow-soft` / `shadow-soft-lg`
+- Радіуси: `rounded-md` (6px) — єдиний токен
+- Шрифти: `font-display` = Montserrat (заголовки), `font-sans` = Inter (текст), обидва з кирилицею
+- Компоненти: `packages/ui` — GlassCard (плоска soft-картка), GlassModal, TimePicker, DatePicker
+- Фаза 1 застосована до календаря; інші сторінки переводяться поступово
 
 ## Git
 - `main` — захищена (не чіпати)

@@ -1,9 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { auth } from '@/lib/auth'
 import { ensureDB } from '@/lib/db'
-import { Session, ClientCoach } from '@atleti/db'
-import type { AtletiSession } from '@atleti/types'
+import { Session, ClientCoach, CoachProfile, CoachBlock } from '@atleti/db'
+import type { AtletiSession, ICoachBlock } from '@atleti/types'
 import { sessionCreateSchema } from '@/lib/validations/coach'
+import { hasBlockingConflict, MAX_SESSION_DURATION_MIN } from '@/lib/session-conflict'
+import { checkWithinSchedule, utcSlotParts } from '@/lib/coach-schedule'
 
 export async function GET(req: NextRequest) {
   const session = await auth()
@@ -52,8 +54,39 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Клієнт не належить до вашого списку' }, { status: 403 })
   }
 
-  if (new Date(parsed.data.scheduledAt) <= new Date()) {
+  const start = new Date(scheduledAt)
+  if (start <= new Date()) {
     return NextResponse.json({ error: 'Дата заняття має бути в майбутньому' }, { status: 400 })
+  }
+
+  // Лише в межах робочого графіку і поза блоками (обід тощо).
+  const { date: slotDate, dowKey, startMin } = utcSlotParts(start)
+  const [coachProfile, coachBlocks] = await Promise.all([
+    CoachProfile.findOne({ userId: coachSession.userId }, 'workingHours'),
+    CoachBlock.find({ coachId: coachSession.userId }).lean() as unknown as Promise<ICoachBlock[]>,
+  ])
+  const schedCheck = checkWithinSchedule(
+    coachProfile?.workingHours?.[dowKey], coachBlocks, slotDate, dowKey, startMin, startMin + duration
+  )
+  if (!schedCheck.ok) {
+    return NextResponse.json({ error: schedCheck.error }, { status: 400 })
+  }
+
+  // Заборона подвійного бронювання (крім Спліт поверх Спліт).
+  // Беремо scheduled-заняття коуча з вікна [start − maxDuration, start + duration) і перевіряємо перетин у JS.
+  const windowStart = new Date(start.getTime() - MAX_SESSION_DURATION_MIN * 60_000)
+  const windowEnd = new Date(start.getTime() + duration * 60_000)
+  const candidates = await Session.find({
+    coachId: coachSession.userId,
+    status: 'scheduled',
+    scheduledAt: { $gte: windowStart, $lt: windowEnd },
+  }).select('scheduledAt duration type')
+
+  if (hasBlockingConflict(start, duration, type, candidates)) {
+    return NextResponse.json(
+      { error: 'На цей час уже заплановано заняття. Поверх можна додати лише Спліт-заняття.' },
+      { status: 409 }
+    )
   }
 
   const newSession = await Session.create({

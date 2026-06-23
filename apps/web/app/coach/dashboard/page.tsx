@@ -19,6 +19,7 @@ function formatDate(date: Date): string {
     month: 'short',
     hour: '2-digit',
     minute: '2-digit',
+    timeZone: 'UTC', // заняття зберігаються як UTC wall-clock
   })
 }
 
@@ -90,20 +91,15 @@ export default async function CoachDashboard() {
         </GlassCard>
       </div>
 
-      <div className="grid grid-cols-3 gap-3">
-        <Link href="/clients">
+      <div className="grid grid-cols-2 gap-3">
+        <Link href="/coach/clients">
           <GlassCard className="text-center py-4 cursor-pointer hover:bg-white/70 transition-colors">
             <p className="text-sm font-medium text-gray-700">Запросити клієнта</p>
           </GlassCard>
         </Link>
-        <Link href="/calendar">
+        <Link href="/coach/calendar">
           <GlassCard className="text-center py-4 cursor-pointer hover:bg-white/70 transition-colors">
             <p className="text-sm font-medium text-gray-700">Переглянути календар</p>
-          </GlassCard>
-        </Link>
-        <Link href="/settings">
-          <GlassCard className="text-center py-4 cursor-pointer hover:bg-white/70 transition-colors">
-            <p className="text-sm font-medium text-gray-700">Налаштування</p>
           </GlassCard>
         </Link>
       </div>

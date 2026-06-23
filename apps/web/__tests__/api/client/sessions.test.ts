@@ -94,7 +94,7 @@ describe('GET /api/client/sessions', () => {
   })
 
   it('returns 401 when not authenticated', async () => {
-    vi.mocked((await import('@/lib/auth')).auth).mockResolvedValueOnce(null)
+    vi.mocked((await import('@/lib/auth')).auth).mockResolvedValueOnce(null as any)
     const { GET } = await import('@/app/api/client/sessions/route')
     const req = new Request('http://localhost/api/client/sessions')
     const res = await GET(req as any)
@@ -194,7 +194,7 @@ describe('PUT /api/client/sessions/[sessionId]', () => {
   })
 
   it('returns 401 when not authenticated', async () => {
-    vi.mocked((await import('@/lib/auth')).auth).mockResolvedValueOnce(null)
+    vi.mocked((await import('@/lib/auth')).auth).mockResolvedValueOnce(null as any)
     const { PUT } = await import('@/app/api/client/sessions/[sessionId]/route')
     const req = new Request('http://localhost/api/client/sessions/fakeid', {
       method: 'PUT',

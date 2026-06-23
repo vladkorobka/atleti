@@ -20,6 +20,7 @@ function formatDate(date: Date): string {
     month: 'short',
     hour: '2-digit',
     minute: '2-digit',
+    timeZone: 'UTC', // заняття зберігаються як UTC wall-clock
   })
 }
 
@@ -36,13 +37,14 @@ export default async function ClientDashboard() {
   }).populate('coachId', 'name nickname')
 
   const status = relationship?.status ?? 'none'
-  const coach = relationship?.coachId as { name: string; nickname: string } | null
+  // coachId спопульований у обʼєкт на рантаймі, хоч статичний тип — string
+  const coach = relationship?.coachId as unknown as { name: string; nickname: string } | null
 
   let balance = null
   let nextSession = null
 
   if (status === 'active' && relationship) {
-    const coachId = relationship.coachId._id ?? relationship.coachId
+    const coachId = (relationship.coachId as unknown as { _id?: string })._id ?? relationship.coachId
     ;[balance, nextSession] = await Promise.all([
       Balance.findOne({ clientId: user.userId, coachId }),
       Session.findOne({

@@ -1,3 +1,9 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+/* Запобіжник від горизонтального скролу на мобільному (clip, щоб не ламати sticky) */
+html,
+body {
+  overflow-x: clip;
+}

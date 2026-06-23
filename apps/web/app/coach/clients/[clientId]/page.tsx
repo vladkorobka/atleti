@@ -69,7 +69,7 @@ export default async function ClientDetailPage({ params }: { params: { clientId:
               <GlassCard key={s._id.toString()} className="flex items-center justify-between">
                 <div>
                   <p className="text-sm font-medium text-gray-900">
-                    {new Date(s.scheduledAt).toLocaleDateString('uk-UA', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}
+                    {new Date(s.scheduledAt).toLocaleDateString('uk-UA', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit', timeZone: 'UTC' })}
                   </p>
                   <p className="text-xs text-gray-500">{s.duration} хв</p>
                 </div>
