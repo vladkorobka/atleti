@@ -1,12 +1,11 @@
 import { Schema } from 'mongoose'
-import type { ICoachProfile } from '@atleti/types'
 
 const WorkingHoursDaySchema = new Schema(
   { start: String, end: String, slotDuration: Number },
   { _id: false }
 )
 
-export const CoachProfileSchema = new Schema<ICoachProfile>({
+export const CoachProfileSchema = new Schema({
   userId: { type: Schema.Types.ObjectId, ref: 'User', required: true, unique: true },
   bio: String,
   specializations: [String],

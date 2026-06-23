@@ -68,7 +68,7 @@ describe('DELETE /api/client/coach', () => {
   })
 
   it('returns 401 when not authenticated', async () => {
-    vi.mocked((await import('@/lib/auth')).auth).mockResolvedValueOnce(null)
+    vi.mocked((await import('@/lib/auth')).auth).mockResolvedValueOnce(null as any)
     const { DELETE } = await import('@/app/api/client/coach/route')
     const res = await DELETE()
     expect(res.status).toBe(401)
