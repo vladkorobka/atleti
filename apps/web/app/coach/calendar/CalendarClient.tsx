@@ -495,26 +495,41 @@ export default function CalendarClient({ clients }: { clients: Client[] }) {
 
   return (
     <div className="space-y-4 pt-4">
-      {/* Top buttons */}
-      <div className="flex flex-wrap gap-2">
+      {/* Top action bar — glass-сегментована панель, mobile-first */}
+      <div className="flex items-center gap-2 rounded-md border border-white/40 bg-white/60 p-1.5 shadow-sm backdrop-blur-sm">
         <button
           onClick={openScheduleModal}
-          className="bg-white border border-gray-200 text-gray-700 rounded-md px-3 py-2 text-sm font-medium hover:bg-gray-50 transition-colors"
+          aria-label="Робочий графік"
+          className="flex shrink-0 items-center gap-1.5 rounded-md px-2.5 py-2 text-sm font-medium text-gray-700 transition-colors hover:bg-white/70 active:bg-white/80"
         >
-          ⚙️ Робочий графік
+          <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+            <circle cx="12" cy="12" r="3" />
+            <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" />
+          </svg>
+          <span className="hidden sm:inline">Графік</span>
         </button>
         <button
           onClick={openAddBlock}
-          className="bg-white border border-gray-200 text-gray-700 rounded-md px-3 py-2 text-sm font-medium hover:bg-gray-50 transition-colors"
+          aria-label="Заблокувати час"
+          className="flex shrink-0 items-center gap-1.5 rounded-md px-2.5 py-2 text-sm font-medium text-gray-700 transition-colors hover:bg-white/70 active:bg-white/80"
         >
-          🚫 Заблокувати
+          <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+            <circle cx="12" cy="12" r="9" />
+            <path d="m5.6 5.6 12.8 12.8" />
+          </svg>
+          <span className="hidden sm:inline">Блок</span>
         </button>
         <button
           onClick={() => { setError(''); setAddOpen(true) }}
           disabled={clients.length === 0}
-          className="ml-auto bg-gray-900 text-white rounded-md px-3 py-2 text-sm font-medium hover:bg-gray-700 transition-colors disabled:opacity-40"
+          className="ml-auto flex min-w-0 flex-1 items-center justify-center gap-1.5 rounded-md bg-gray-900 px-3 py-2 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-gray-700 active:bg-gray-800 disabled:cursor-not-allowed disabled:opacity-40 sm:flex-none"
         >
-          {clients.length === 0 ? 'Немає клієнтів' : '+ Заняття'}
+          {clients.length > 0 && (
+            <svg className="h-4 w-4 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+              <path d="M12 5v14M5 12h14" />
+            </svg>
+          )}
+          <span className="truncate">{clients.length === 0 ? 'Немає клієнтів' : 'Заняття'}</span>
         </button>
       </div>
 
