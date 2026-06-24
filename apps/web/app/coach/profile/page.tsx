@@ -1,7 +1,7 @@
 'use client'
 import { useState, useEffect } from 'react'
 import { useSession } from 'next-auth/react'
-import { GlassCard } from '@atleti/ui'
+import { GlassCard, CenteredSpinner } from '@atleti/ui'
 
 export default function ProfilePage() {
   const { update } = useSession()
@@ -97,7 +97,7 @@ export default function ProfilePage() {
     setTimeout(() => setSaved(false), 2000)
   }
 
-  if (loading) return <div className="pt-4"><p className="text-sm text-gray-400">Завантаження...</p></div>
+  if (loading) return <CenteredSpinner />
 
   return (
     <div className="space-y-4 pt-4">

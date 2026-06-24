@@ -1,7 +1,7 @@
 'use client'
 import { useState, useEffect, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
-import { GlassCard, GlassModal, Badge, DatePicker, TimePicker } from '@atleti/ui'
+import { GlassCard, GlassModal, Badge, DatePicker, TimePicker, CenteredSpinner } from '@atleti/ui'
 import { generateSlots, isDayBlocked, getSlotBlock } from '@/lib/slot-utils'
 import { kyivInputToUtc, kyivParts, kyivDateInput } from '@/lib/tz'
 import type { ICoachBlock, DowKey, IWorkingHoursDay } from '@atleti/types'
@@ -436,7 +436,7 @@ export default function CalendarClient({ clients }: { clients: Client[] }) {
     })
   }
 
-  if (loading) return <div className="pt-4"><p className="text-sm text-gray-400">Завантаження...</p></div>
+  if (loading) return <CenteredSpinner />
 
   const timeline = buildDayTimeline()
 

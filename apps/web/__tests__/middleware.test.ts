@@ -10,6 +10,11 @@ describe('middleware redirect logic', () => {
     expect(resolveRedirect('/login', null)).toBeNull()
   })
 
+  it('allows unauthenticated access to password reset pages', () => {
+    expect(resolveRedirect('/forgot-password', null)).toBeNull()
+    expect(resolveRedirect('/reset-password', null)).toBeNull()
+  })
+
   it('redirects user without nickname to role-select', () => {
     expect(resolveRedirect('/dashboard', { role: 'coach', nickname: '' })).toBe('/role-select')
   })

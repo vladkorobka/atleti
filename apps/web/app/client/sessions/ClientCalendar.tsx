@@ -1,6 +1,6 @@
 'use client'
 import { useState, useEffect, useCallback } from 'react'
-import { GlassCard, Badge } from '@atleti/ui'
+import { GlassCard, Badge, CenteredSpinner, Spinner } from '@atleti/ui'
 import { kyivParts, formatKyiv, kyivInputToUtc } from '@/lib/tz'
 
 interface Session {
@@ -223,7 +223,7 @@ export default function ClientCalendar() {
     }
   }
 
-  if (loading) return <div className="pt-4"><p className="text-sm text-gray-400">Завантаження...</p></div>
+  if (loading) return <CenteredSpinner />
 
   const hasBalance = sessionsRemaining !== null && sessionsRemaining > 0
 
@@ -340,7 +340,7 @@ export default function ClientCalendar() {
               <p className="text-xs font-medium text-gray-500 mb-2">Вільні слоти</p>
               {slotsLoading ? (
                 <GlassCard>
-                  <p className="text-sm text-gray-400 text-center py-3">Завантаження...</p>
+                  <div className="flex justify-center py-3"><Spinner size={22} /></div>
                 </GlassCard>
               ) : slotsError ? (
                 <GlassCard>
