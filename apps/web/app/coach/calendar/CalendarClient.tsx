@@ -24,6 +24,14 @@ const SESSION_TYPES = [
   { value: 'consultation', label: 'Консультація' },
 ]
 
+// Кольоровий лейбл типу заняття (спліт виділяється фіолетовим)
+const SESSION_TYPE_BADGE: Record<string, { label: string; cls: string }> = {
+  regular: { label: 'Тренування', cls: 'bg-blue-100 text-blue-700' },
+  split: { label: 'Спліт', cls: 'bg-purple-100 text-purple-700' },
+  online: { label: 'Онлайн', cls: 'bg-teal-100 text-teal-700' },
+  consultation: { label: 'Консультація', cls: 'bg-amber-100 text-amber-700' },
+}
+
 const STATUS_LABELS: Record<string, { label: string; variant: 'default' | 'success' | 'warning' | 'danger' }> = {
   scheduled: { label: 'Заплановано', variant: 'warning' },
   completed: { label: 'Проведено', variant: 'success' },
@@ -418,12 +426,13 @@ export default function CalendarClient({ clients }: { clients: Client[] }) {
     const daySlots = generateSlots(dayHours.start, dayHours.end, dayHours.slotDuration)
     return daySlots.map(slot => {
       const [h, m] = slot.split(':').map(Number)
-      const session = selectedDaySessions.find(s => {
+      // усі заняття цього слоту (для спліту їх кілька — різні клієнти)
+      const slotSessions = selectedDaySessions.filter(s => {
         const p = kyivParts(new Date(s.scheduledAt))
         return p.hour === h && p.minute === m
       })
       const block = getSlotBlock(blocks, slot, ds, dowKey, dayHours.slotDuration)
-      return { slot, session, block }
+      return { slot, slotSessions, block }
     })
   }
 
@@ -528,10 +537,10 @@ export default function CalendarClient({ clients }: { clients: Client[] }) {
               </GlassCard>
             ) : (
               <div className="space-y-1">
-                {timeline.map(({ slot, session, block }) => (
+                {timeline.map(({ slot, slotSessions, block }) => (
                   <GlassCard key={slot} className="py-2 px-3">
-                    <div className="flex items-center justify-between gap-2">
-                      <span className="text-xs font-mono text-gray-500 shrink-0">{slot}</span>
+                    <div className="flex items-start justify-between gap-2">
+                      <span className="text-xs font-mono text-gray-500 shrink-0 pt-1">{slot}</span>
                       {block ? (
                         <div className="flex items-center gap-1 flex-1 min-w-0">
                           <span className="text-xs text-red-500 truncate">
@@ -546,27 +555,40 @@ export default function CalendarClient({ clients }: { clients: Client[] }) {
                             ✕
                           </button>
                         </div>
-                      ) : session ? (
-                        <div className="flex items-center justify-between flex-1 min-w-0">
-                          <span className="text-xs text-gray-700 truncate">
-                            {typeof session.clientId === 'object' ? session.clientId.name : '—'}
-                          </span>
-                          <div className="flex gap-2 shrink-0">
-                            {session.status === 'scheduled' && (
-                              <button onClick={() => openEditModal(session)} className="text-xs text-gray-400 hover:text-gray-600 underline">
-                                ред.
-                              </button>
-                            )}
-                            <button onClick={() => { setError(''); setStatusReason(''); setStatusModal(session) }} className="text-xs text-gray-400 hover:text-gray-600 underline">
-                              статус
-                            </button>
-                            <Badge variant={STATUS_LABELS[session.status]?.variant ?? 'default'}>
-                              {STATUS_LABELS[session.status]?.label ?? session.status}
-                            </Badge>
-                          </div>
+                      ) : slotSessions.length > 0 ? (
+                        <div className="flex-1 min-w-0 space-y-1.5">
+                          {slotSessions.length > 1 && (
+                            <p className="text-[10px] font-medium text-purple-600">Спліт · {slotSessions.length} клієнти</p>
+                          )}
+                          {slotSessions.map(session => {
+                            const tb = SESSION_TYPE_BADGE[session.type] ?? { label: session.type, cls: 'bg-gray-100 text-gray-600' }
+                            return (
+                              <div key={session._id} className="flex items-center justify-between gap-2">
+                                <div className="flex items-center gap-1.5 min-w-0">
+                                  <span className={`shrink-0 rounded px-1.5 py-0.5 text-[10px] font-medium ${tb.cls}`}>{tb.label}</span>
+                                  <span className="text-xs text-gray-700 truncate">
+                                    {typeof session.clientId === 'object' ? session.clientId.name : '—'}
+                                  </span>
+                                </div>
+                                <div className="flex gap-2 shrink-0 items-center">
+                                  {session.status === 'scheduled' && (
+                                    <button onClick={() => openEditModal(session)} className="text-xs text-gray-400 hover:text-gray-600 underline">
+                                      ред.
+                                    </button>
+                                  )}
+                                  <button onClick={() => { setError(''); setStatusReason(''); setStatusModal(session) }} className="text-xs text-gray-400 hover:text-gray-600 underline">
+                                    статус
+                                  </button>
+                                  <Badge variant={STATUS_LABELS[session.status]?.variant ?? 'default'}>
+                                    {STATUS_LABELS[session.status]?.label ?? session.status}
+                                  </Badge>
+                                </div>
+                              </div>
+                            )
+                          })}
                         </div>
                       ) : (
-                        <span className="text-xs text-green-600">Вільно</span>
+                        <span className="text-xs text-green-600 pt-1">Вільно</span>
                       )}
                     </div>
                   </GlassCard>
