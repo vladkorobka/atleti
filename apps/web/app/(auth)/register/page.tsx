@@ -1,7 +1,7 @@
 'use client'
 import { useState } from 'react'
 import { signIn } from 'next-auth/react'
-import { GlassCard } from '@atleti/ui'
+import { GlassCard, Select } from '@atleti/ui'
 
 export default function RegisterPage() {
   const [form, setForm] = useState({ email: '', password: '', name: '', role: 'client', nickname: '' })
@@ -39,11 +39,14 @@ export default function RegisterPage() {
         <input placeholder="Нікнейм (латиниця, без пробілів)" required value={form.nickname}
           onChange={(e) => set('nickname', e.target.value.toLowerCase().replace(/\s/g, ''))}
           className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-400" />
-        <select value={form.role} onChange={(e) => set('role', e.target.value)}
-          className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-400 bg-white">
-          <option value="client">Я — клієнт</option>
-          <option value="coach">Я — тренер</option>
-        </select>
+        <Select
+          value={form.role}
+          onChange={(v) => set('role', v)}
+          options={[
+            { value: 'client', label: 'Я — клієнт' },
+            { value: 'coach', label: 'Я — тренер' },
+          ]}
+        />
         {error && <p className="text-red-500 text-xs">{error}</p>}
         <button type="submit" disabled={loading}
           className="w-full bg-gray-900 text-white rounded-md py-2.5 text-sm font-medium hover:bg-gray-700 transition-colors disabled:opacity-50">

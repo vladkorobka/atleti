@@ -13,6 +13,22 @@ export function GlassModal({ open, onClose, title, children }: GlassModalProps) 
   const [mounted, setMounted] = useState(false)
   useEffect(() => setMounted(true), [])
 
+  // Блокуємо скрол фону, поки модалка відкрита — сторінка позаду не рухається.
+  // Компенсуємо ширину скролбара paddingRight, щоб не було «стрибка» лейауту.
+  useEffect(() => {
+    if (!open) return
+    const { body, documentElement } = document
+    const scrollbarW = window.innerWidth - documentElement.clientWidth
+    const prevOverflow = body.style.overflow
+    const prevPadding = body.style.paddingRight
+    body.style.overflow = 'hidden'
+    if (scrollbarW > 0) body.style.paddingRight = `${scrollbarW}px`
+    return () => {
+      body.style.overflow = prevOverflow
+      body.style.paddingRight = prevPadding
+    }
+  }, [open])
+
   if (!open || !mounted) return null
 
   // Портал у body: інакше всередині батька з backdrop-blur/transform

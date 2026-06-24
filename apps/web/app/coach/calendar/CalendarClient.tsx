@@ -1,7 +1,7 @@
 'use client'
 import { useState, useEffect, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
-import { GlassCard, GlassModal, Badge, DatePicker, TimePicker, CenteredSpinner } from '@atleti/ui'
+import { GlassCard, GlassModal, Badge, DatePicker, TimePicker, CenteredSpinner, Toggle, Select } from '@atleti/ui'
 import { generateSlots, isDayBlocked, getSlotBlock } from '@/lib/slot-utils'
 import { kyivInputToUtc, kyivParts, kyivDateInput } from '@/lib/tz'
 import type { ICoachBlock, DowKey, IWorkingHoursDay } from '@atleti/types'
@@ -338,6 +338,15 @@ export default function CalendarClient({ clients }: { clients: Client[] }) {
     }
   }
 
+  // Клік на вільний слот у розкладі дня — відкриваємо "Нове заняття" з підставленими датою/часом
+  function openAddForSlot(slot: string) {
+    if (!selectedDay) return
+    if (clients.length === 0) return
+    setError('')
+    setForm(f => ({ ...f, date: dateStr(selectedDay), time: slot }))
+    setAddOpen(true)
+  }
+
   function openEditModal(s: Session) {
     const p = kyivParts(new Date(s.scheduledAt))
     const pad = (n: number) => String(n).padStart(2, '0')
@@ -588,7 +597,14 @@ export default function CalendarClient({ clients }: { clients: Client[] }) {
                           })}
                         </div>
                       ) : (
-                        <span className="text-xs text-green-600 pt-1">Вільно</span>
+                        <button
+                          type="button"
+                          onClick={() => openAddForSlot(slot)}
+                          disabled={clients.length === 0}
+                          className="flex-1 text-left text-xs text-green-600 hover:text-green-700 pt-1 disabled:text-gray-300 disabled:cursor-not-allowed"
+                        >
+                          + Вільно — запланувати
+                        </button>
                       )}
                     </div>
                   </GlassCard>
@@ -605,41 +621,29 @@ export default function CalendarClient({ clients }: { clients: Client[] }) {
           {ALL_SCHEDULE_DAYS.map(({ key, label }) => {
             const d = scheduleForm[key]
             return (
-              <div key={key} className="space-y-1">
-                <div className="flex items-center gap-2">
-                  <input
-                    type="checkbox"
-                    id={`day-${key}`}
-                    checked={d.enabled}
-                    onChange={e => setScheduleForm(f => ({ ...f, [key]: { ...f[key], enabled: e.target.checked } }))}
-                    className="rounded"
-                  />
-                  <label htmlFor={`day-${key}`} className="text-sm font-medium text-gray-700 w-28">{label}</label>
-                  {d.enabled && (
-                    <div className="flex gap-1 items-center text-xs text-gray-500">
-                      <TimePicker
-                        value={d.start}
-                        onChange={v => setScheduleForm(f => ({ ...f, [key]: { ...f[key], start: v } }))}
-                        className="w-20"
-                      />
-                      <span>–</span>
-                      <TimePicker
-                        value={d.end}
-                        onChange={v => setScheduleForm(f => ({ ...f, [key]: { ...f[key], end: v } }))}
-                        className="w-20"
-                      />
-                      <input
-                        type="number"
-                        min="15" max="240"
-                        value={d.slotDuration}
-                        onChange={e => setScheduleForm(f => ({ ...f, [key]: { ...f[key], slotDuration: e.target.value } }))}
-                        className="border border-gray-300 rounded px-1 py-0.5 text-xs w-14 focus:outline-none focus:ring-1 focus:ring-gray-400"
-                        title="Тривалість слоту (хв)"
-                      />
-                      <span>хв</span>
-                    </div>
-                  )}
-                </div>
+              <div key={key} className="flex items-center gap-3 min-h-[2.5rem]">
+                <Toggle
+                  checked={d.enabled}
+                  onChange={v => setScheduleForm(f => ({ ...f, [key]: { ...f[key], enabled: v } }))}
+                />
+                <span className="text-sm font-medium text-gray-700 w-20 shrink-0">{label}</span>
+                {d.enabled ? (
+                  <div className="flex gap-2 items-center ml-auto">
+                    <TimePicker
+                      value={d.start}
+                      onChange={v => setScheduleForm(f => ({ ...f, [key]: { ...f[key], start: v } }))}
+                      className="w-[4.5rem]"
+                    />
+                    <span className="text-gray-400">–</span>
+                    <TimePicker
+                      value={d.end}
+                      onChange={v => setScheduleForm(f => ({ ...f, [key]: { ...f[key], end: v } }))}
+                      className="w-[4.5rem]"
+                    />
+                  </div>
+                ) : (
+                  <span className="text-xs text-gray-400 ml-auto">Вихідний</span>
+                )}
               </div>
             )
           })}
@@ -711,14 +715,11 @@ export default function CalendarClient({ clients }: { clients: Client[] }) {
           ) : (
             <>
               {/* Recurring toggle */}
-              <div className="flex items-center gap-2">
-                <input type="checkbox" id="recurring-toggle"
-                  checked={blockForm.recurringEnabled}
-                  onChange={e => setBlockForm(f => ({ ...f, recurringEnabled: e.target.checked }))}
-                  className="rounded"
-                />
-                <label htmlFor="recurring-toggle" className="text-sm text-gray-700">Повторюваний</label>
-              </div>
+              <Toggle
+                checked={blockForm.recurringEnabled}
+                onChange={v => setBlockForm(f => ({ ...f, recurringEnabled: v }))}
+                label="Повторюваний"
+              />
 
               {blockForm.recurringEnabled ? (
                 <div className="space-y-2">
@@ -735,14 +736,11 @@ export default function CalendarClient({ clients }: { clients: Client[] }) {
                     ))}
                   </div>
                   {blockForm.recurringType === 'weekly' && (
-                    <select value={blockForm.recurringDayOfWeek}
-                      onChange={e => setBlockForm(f => ({ ...f, recurringDayOfWeek: e.target.value as DowKey }))}
-                      className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-400 bg-white"
-                    >
-                      {ALL_SCHEDULE_DAYS.map(({ key, label }) => (
-                        <option key={key} value={key}>{label}</option>
-                      ))}
-                    </select>
+                    <Select
+                      value={blockForm.recurringDayOfWeek}
+                      onChange={v => setBlockForm(f => ({ ...f, recurringDayOfWeek: v as DowKey }))}
+                      options={ALL_SCHEDULE_DAYS.map(({ key, label }) => ({ value: key, label }))}
+                    />
                   )}
                   <DatePicker value={blockForm.recurringUntil}
                     onChange={v => setBlockForm(f => ({ ...f, recurringUntil: v }))}
@@ -791,10 +789,12 @@ export default function CalendarClient({ clients }: { clients: Client[] }) {
       {/* Add session modal */}
       <GlassModal open={addOpen} onClose={() => setAddOpen(false)} title="Нове заняття">
         <form onSubmit={handleAddSession} className="space-y-3">
-          <select value={form.clientId} onChange={e => setForm(f => ({ ...f, clientId: e.target.value }))} required
-            className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-400 bg-white">
-            {clients.map(c => <option key={c.id} value={c.id}>{c.name} (@{c.nickname})</option>)}
-          </select>
+          <Select
+            value={form.clientId}
+            onChange={v => setForm(f => ({ ...f, clientId: v }))}
+            options={clients.map(c => ({ value: c.id, label: `${c.name} (@${c.nickname})` }))}
+            placeholder="Оберіть клієнта"
+          />
           <DatePicker value={form.date} onChange={v => setForm(f => ({ ...f, date: v }))} min={kyivDateInput(new Date())} />
           <TimePicker value={form.time} onChange={v => setForm(f => ({ ...f, time: v }))} />
           <div className="grid grid-cols-2 gap-2">
@@ -802,10 +802,11 @@ export default function CalendarClient({ clients }: { clients: Client[] }) {
               onChange={e => setForm(f => ({ ...f, duration: e.target.value }))}
               placeholder="Тривалість (хв)"
               className="border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-400" />
-            <select value={form.type} onChange={e => setForm(f => ({ ...f, type: e.target.value }))}
-              className="border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-400 bg-white">
-              {SESSION_TYPES.map(t => <option key={t.value} value={t.value}>{t.label}</option>)}
-            </select>
+            <Select
+              value={form.type}
+              onChange={v => setForm(f => ({ ...f, type: v }))}
+              options={SESSION_TYPES}
+            />
           </div>
           {error && <p className="text-xs text-red-500">{error}</p>}
           <button type="submit" disabled={saving}
@@ -865,10 +866,11 @@ export default function CalendarClient({ clients }: { clients: Client[] }) {
                 onChange={e => setEditForm(f => ({ ...f, duration: e.target.value }))}
                 placeholder="Тривалість (хв)"
                 className="border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-400" />
-              <select value={editForm.type} onChange={e => setEditForm(f => ({ ...f, type: e.target.value }))}
-                className="border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-400 bg-white">
-                {SESSION_TYPES.map(t => <option key={t.value} value={t.value}>{t.label}</option>)}
-              </select>
+              <Select
+                value={editForm.type}
+                onChange={v => setEditForm(f => ({ ...f, type: v }))}
+                options={SESSION_TYPES}
+              />
             </div>
             {error && <p className="text-xs text-red-500">{error}</p>}
             <button type="submit" disabled={saving}

@@ -1,18 +1,26 @@
 'use client'
 import { signIn } from 'next-auth/react'
 import { useState } from 'react'
-import { GlassCard } from '@atleti/ui'
+import { GlassCard, Spinner } from '@atleti/ui'
 
 export default function LoginPage() {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [error, setError] = useState('')
+  const [loading, setLoading] = useState(false)
 
   async function handleCredentials(e: React.FormEvent) {
     e.preventDefault()
+    setError('')
+    setLoading(true)
     const result = await signIn('credentials', { email, password, redirect: false })
-    if (result?.error) setError('Невірний email або пароль')
-    else window.location.href = '/'
+    if (result?.error) {
+      setError('Невірний email або пароль')
+      setLoading(false)
+    } else {
+      // Лишаємо loading=true до повного переходу — кнопка не «миготить»
+      window.location.href = '/'
+    }
   }
 
   return (
@@ -33,8 +41,10 @@ export default function LoginPage() {
           className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-400"
         />
         {error && <p className="text-red-500 text-xs">{error}</p>}
-        <button type="submit" className="w-full bg-gray-900 text-white rounded-md py-2.5 text-sm font-medium hover:bg-gray-700 transition-colors">
-          Увійти
+        <button type="submit" disabled={loading}
+          className="w-full flex items-center justify-center gap-2 bg-gray-900 text-white rounded-md py-2.5 text-sm font-medium hover:bg-gray-700 disabled:opacity-70 disabled:cursor-not-allowed transition-colors">
+          {loading && <Spinner size={16} className="border-white/40 border-t-white" />}
+          {loading ? 'Вхід...' : 'Увійти'}
         </button>
       </form>
 

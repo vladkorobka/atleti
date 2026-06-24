@@ -1,5 +1,6 @@
 'use client'
 import React, { useRef, useEffect, useState, useCallback } from 'react'
+import { Popover } from './Popover'
 
 const ITEM_H = 40
 const VISIBLE = 5
@@ -92,7 +93,7 @@ interface TimePickerProps {
 
 export function TimePicker({ value, onChange, step = 5, className = '' }: TimePickerProps) {
   const [open, setOpen] = useState(false)
-  const wrapRef = useRef<HTMLDivElement>(null)
+  const btnRef = useRef<HTMLButtonElement>(null)
 
   const hours = Array.from({ length: 24 }, (_, i) => i)
   const minutes = Array.from({ length: Math.ceil(60 / step) }, (_, i) => i * step)
@@ -110,27 +111,12 @@ export function TimePicker({ value, onChange, step = 5, className = '' }: TimePi
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
-  useEffect(() => {
-    if (!open) return
-    function onDoc(e: MouseEvent) {
-      if (wrapRef.current && !wrapRef.current.contains(e.target as Node)) setOpen(false)
-    }
-    function onKey(e: KeyboardEvent) {
-      if (e.key === 'Escape') setOpen(false)
-    }
-    document.addEventListener('mousedown', onDoc)
-    document.addEventListener('keydown', onKey)
-    return () => {
-      document.removeEventListener('mousedown', onDoc)
-      document.removeEventListener('keydown', onKey)
-    }
-  }, [open])
-
   const display = value ? `${pad2(h)}:${pad2(snappedM)}` : '--:--'
 
   return (
-    <div className={`relative ${className}`} ref={wrapRef}>
+    <div className={className}>
       <button
+        ref={btnRef}
         type="button"
         onClick={() => setOpen(o => !o)}
         aria-haspopup="dialog"
@@ -141,8 +127,8 @@ export function TimePicker({ value, onChange, step = 5, className = '' }: TimePi
       >
         {display}
       </button>
-      {open && (
-        <div className="absolute z-[60] mt-1 left-1/2 -translate-x-1/2 max-w-[calc(100vw-2.5rem)] bg-white border border-gray-200 rounded-md shadow-xl p-2">
+      <Popover open={open} onClose={() => setOpen(false)} anchor={btnRef.current} align="center">
+        <div className="bg-white border border-gray-200 rounded-md shadow-xl p-2">
           <div className="relative flex items-stretch justify-center gap-1">
             <div
               className="pointer-events-none absolute left-1 right-1 top-1/2 -translate-y-1/2 rounded-md bg-gray-900/5 border-y border-gray-200"
@@ -161,7 +147,7 @@ export function TimePicker({ value, onChange, step = 5, className = '' }: TimePi
             Готово
           </button>
         </div>
-      )}
+      </Popover>
     </div>
   )
 }

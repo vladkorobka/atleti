@@ -1,5 +1,6 @@
 'use client'
 import React, { useState, useRef, useEffect } from 'react'
+import { Popover } from './Popover'
 
 const DAYS_UA = ['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Нд']
 const MONTHS_UA = ['Січень', 'Лютий', 'Березень', 'Квітень', 'Травень', 'Червень',
@@ -52,23 +53,7 @@ export function DatePicker({ value, onChange, min, placeholder = 'Оберіть
   const [open, setOpen] = useState(false)
   const [year, setYear] = useState(init.getFullYear())
   const [month, setMonth] = useState(init.getMonth())
-  const wrapRef = useRef<HTMLDivElement>(null)
-
-  useEffect(() => {
-    if (!open) return
-    function onDoc(e: MouseEvent) {
-      if (wrapRef.current && !wrapRef.current.contains(e.target as Node)) setOpen(false)
-    }
-    function onKey(e: KeyboardEvent) {
-      if (e.key === 'Escape') setOpen(false)
-    }
-    document.addEventListener('mousedown', onDoc)
-    document.addEventListener('keydown', onKey)
-    return () => {
-      document.removeEventListener('mousedown', onDoc)
-      document.removeEventListener('keydown', onKey)
-    }
-  }, [open])
+  const btnRef = useRef<HTMLButtonElement>(null)
 
   // При відкритті стрибаємо на місяць вибраної дати
   useEffect(() => {
@@ -105,8 +90,9 @@ export function DatePicker({ value, onChange, min, placeholder = 'Оберіть
     : placeholder
 
   return (
-    <div className={`relative ${className}`} ref={wrapRef}>
+    <div className={className}>
       <button
+        ref={btnRef}
         type="button"
         onClick={() => setOpen(o => !o)}
         aria-haspopup="dialog"
@@ -117,8 +103,8 @@ export function DatePicker({ value, onChange, min, placeholder = 'Оберіть
       >
         {label}
       </button>
-      {open && (
-        <div className="absolute z-[60] mt-1 left-0 w-[min(18rem,calc(100vw-2.5rem))] bg-white border border-gray-200 rounded-md shadow-xl p-3">
+      <Popover open={open} onClose={() => setOpen(false)} anchor={btnRef.current}>
+        <div className="w-[min(18rem,calc(100vw-1rem))] bg-white border border-gray-200 rounded-md shadow-xl p-3">
           <div className="flex items-center justify-between mb-2">
             <button type="button" onClick={prev} className="p-1 rounded hover:bg-gray-100 text-gray-600">&lsaquo;</button>
             <span className="text-sm font-semibold text-gray-900">{MONTHS_UA[month]} {year}</span>
@@ -154,7 +140,7 @@ export function DatePicker({ value, onChange, min, placeholder = 'Оберіть
             })}
           </div>
         </div>
-      )}
+      </Popover>
     </div>
   )
 }
