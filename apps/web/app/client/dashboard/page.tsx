@@ -6,6 +6,8 @@ import type { AtletiSession } from '@atleti/types'
 import { GlassCard, Badge } from '@atleti/ui'
 import Link from 'next/link'
 import { AcceptInviteButton } from '../coach/AcceptInviteButton'
+import { settlePastSessions } from '@/lib/settle-sessions'
+import { formatKyiv } from '@/lib/tz'
 
 const sessionTypeLabel: Record<string, string> = {
   regular: 'Тренування',
@@ -15,7 +17,7 @@ const sessionTypeLabel: Record<string, string> = {
 }
 
 function formatDate(date: Date): string {
-  return new Date(date).toLocaleDateString('uk-UA', {
+  return formatKyiv(date, {
     day: 'numeric',
     month: 'short',
     hour: '2-digit',
@@ -29,6 +31,7 @@ export default async function ClientDashboard() {
   if (!user || user.role !== 'client') redirect('/login')
 
   await ensureDB()
+  await settlePastSessions({ clientId: user.userId })
 
   const relationship = await ClientCoach.findOne({
     clientId: user.userId,
@@ -36,13 +39,14 @@ export default async function ClientDashboard() {
   }).populate('coachId', 'name nickname')
 
   const status = relationship?.status ?? 'none'
-  const coach = relationship?.coachId as { name: string; nickname: string } | null
+  // coachId спопульований у обʼєкт на рантаймі, хоч статичний тип — string
+  const coach = relationship?.coachId as unknown as { name: string; nickname: string } | null
 
   let balance = null
   let nextSession = null
 
   if (status === 'active' && relationship) {
-    const coachId = relationship.coachId._id ?? relationship.coachId
+    const coachId = (relationship.coachId as unknown as { _id?: string })._id ?? relationship.coachId
     ;[balance, nextSession] = await Promise.all([
       Balance.findOne({ clientId: user.userId, coachId }),
       Session.findOne({

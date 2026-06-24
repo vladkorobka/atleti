@@ -3,6 +3,7 @@ import { auth } from '@/lib/auth'
 import { ensureDB } from '@/lib/db'
 import { Session } from '@atleti/db'
 import type { AtletiSession } from '@atleti/types'
+import { settlePastSessions } from '@/lib/settle-sessions'
 
 export async function GET(req: NextRequest) {
   const session = await auth()
@@ -11,6 +12,7 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
   await ensureDB()
+  await settlePastSessions({ clientId: clientSession.userId })
 
   const url = new URL(req.url)
   const status = url.searchParams.get('status')

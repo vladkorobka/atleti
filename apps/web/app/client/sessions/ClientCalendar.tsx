@@ -1,6 +1,7 @@
 'use client'
 import { useState, useEffect, useCallback } from 'react'
 import { GlassCard, Badge } from '@atleti/ui'
+import { kyivParts, formatKyiv } from '@/lib/tz'
 
 interface Session {
   _id: string
@@ -78,25 +79,27 @@ export default function ClientCalendar() {
     setSelectedDay(null)
   }
 
-  // Filter sessions to only those in the displayed month
+  // Filter sessions to only those in the displayed month (за київським поясом)
   const monthSessions = sessions.filter(s => {
-    const d = new Date(s.scheduledAt)
-    return d.getFullYear() === year && d.getMonth() === month
+    const p = kyivParts(new Date(s.scheduledAt))
+    return p.year === year && p.month - 1 === month
   })
 
   const grid = getMonthGrid(year, month)
 
-  const daysWithSessions = new Set(
-    monthSessions.map(s => {
-      const d = new Date(s.scheduledAt)
-      return `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`
-    })
-  )
+  // ключ календарного дня в київському поясі (місяць 0-based — узгоджено з grid getMonth())
+  const kyivDayKey = (date: Date) => { const p = kyivParts(date); return `${p.year}-${p.month - 1}-${p.day}` }
+  const isSameKyivDay = (date: Date, gridDay: Date) => {
+    const p = kyivParts(date)
+    return p.year === gridDay.getFullYear() && p.month - 1 === gridDay.getMonth() && p.day === gridDay.getDate()
+  }
+
+  const daysWithSessions = new Set(monthSessions.map(s => kyivDayKey(new Date(s.scheduledAt))))
 
   const dayKey = (d: Date) => `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`
 
   const selectedDaySessions = selectedDay
-    ? monthSessions.filter(s => isSameDay(new Date(s.scheduledAt), selectedDay))
+    ? monthSessions.filter(s => isSameKyivDay(new Date(s.scheduledAt), selectedDay))
     : []
 
   async function handleCancel(sessionId: string) {
@@ -199,7 +202,7 @@ export default function ClientCalendar() {
                         <Badge variant={variant}>{label}</Badge>
                       </div>
                       <p className="text-xs text-gray-500">
-                        {scheduledDate.toLocaleTimeString('uk-UA', { hour: '2-digit', minute: '2-digit' })}
+                        {formatKyiv(scheduledDate, { hour: '2-digit', minute: '2-digit' })}
                         {' · '}{s.duration} хв
                       </p>
                       {s.status === 'scheduled' && isFuture && (

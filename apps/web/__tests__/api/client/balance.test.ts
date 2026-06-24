@@ -66,7 +66,7 @@ describe('GET /api/client/balance', () => {
   })
 
   it('returns 401 when not authenticated', async () => {
-    vi.mocked((await import('@/lib/auth')).auth).mockResolvedValueOnce(null)
+    vi.mocked((await import('@/lib/auth')).auth).mockResolvedValueOnce(null as any)
     const { GET } = await import('@/app/api/client/balance/route')
     const res = await GET()
     expect(res.status).toBe(401)

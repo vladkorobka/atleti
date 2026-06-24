@@ -39,6 +39,9 @@ beforeEach(async () => {
 describe('POST /api/coach/sessions', () => {
   it('creates a session', async () => {
     const { POST } = await import('@/app/api/coach/sessions/route')
+    const { ClientCoach } = await import('@atleti/db')
+    await ClientCoach.deleteMany({})
+    await ClientCoach.create({ clientId, coachId, status: 'active' })
     const scheduledAt = new Date(Date.now() + 48 * 60 * 60 * 1000).toISOString()
     const req = new Request('http://localhost/api/coach/sessions', {
       method: 'POST',
@@ -92,5 +95,71 @@ describe('PUT /api/coach/sessions/[sessionId]', () => {
     expect(data.session.status).toBe('cancelled')
     expect(data.session.cancelledByRole).toBe('coach')
     expect(data.session.cancelReason).toBe('Захворів')
+  })
+
+  it('reconciles balance: completed -> cancelled decrements sessionsUsed', async () => {
+    const { Session, Balance } = await import('@atleti/db')
+    await Balance.deleteMany({})
+    await Balance.create({ clientId, coachId, sessionsTotal: 5, sessionsUsed: 1 })
+    const session = await Session.create({
+      clientId, coachId, scheduledAt: new Date(Date.now() - 60 * 60 * 1000),
+      duration: 60, type: 'regular', status: 'completed', createdBy: 'coach',
+    })
+
+    const { PUT } = await import('@/app/api/coach/sessions/[sessionId]/route')
+    const req = new Request(`http://localhost/api/coach/sessions/${session._id}`, {
+      method: 'PUT',
+      body: JSON.stringify({ status: 'cancelled', cancelReason: 'помилка' }),
+      headers: { 'Content-Type': 'application/json' },
+    })
+    const res = await PUT(req as any, { params: { sessionId: session._id.toString() } })
+    expect(res.status).toBe(200)
+    const bal = await Balance.findOne({ clientId, coachId })
+    expect(bal?.sessionsUsed).toBe(0)
+  })
+
+  it('reconciles balance: cancelled -> completed increments and clears cancel meta', async () => {
+    const { Session, Balance } = await import('@atleti/db')
+    await Balance.deleteMany({})
+    await Balance.create({ clientId, coachId, sessionsTotal: 5, sessionsUsed: 0 })
+    const session = await Session.create({
+      clientId, coachId, scheduledAt: new Date(Date.now() - 60 * 60 * 1000),
+      duration: 60, type: 'regular', status: 'cancelled', cancelReason: 'старе',
+      cancelledByRole: 'coach', createdBy: 'coach',
+    })
+
+    const { PUT } = await import('@/app/api/coach/sessions/[sessionId]/route')
+    const req = new Request(`http://localhost/api/coach/sessions/${session._id}`, {
+      method: 'PUT',
+      body: JSON.stringify({ status: 'completed' }),
+      headers: { 'Content-Type': 'application/json' },
+    })
+    const res = await PUT(req as any, { params: { sessionId: session._id.toString() } })
+    expect(res.status).toBe(200)
+    const data = await res.json()
+    expect(data.session.status).toBe('completed')
+    expect(data.session.cancelReason == null || data.session.cancelReason === '').toBe(true)
+    const bal = await Balance.findOne({ clientId, coachId })
+    expect(bal?.sessionsUsed).toBe(1)
+  })
+
+  it('does not drive sessionsUsed below zero', async () => {
+    const { Session, Balance } = await import('@atleti/db')
+    await Balance.deleteMany({})
+    await Balance.create({ clientId, coachId, sessionsTotal: 5, sessionsUsed: 0 })
+    const session = await Session.create({
+      clientId, coachId, scheduledAt: new Date(Date.now() - 60 * 60 * 1000),
+      duration: 60, type: 'regular', status: 'completed', createdBy: 'coach',
+    })
+
+    const { PUT } = await import('@/app/api/coach/sessions/[sessionId]/route')
+    const req = new Request(`http://localhost/api/coach/sessions/${session._id}`, {
+      method: 'PUT',
+      body: JSON.stringify({ status: 'scheduled' }),
+      headers: { 'Content-Type': 'application/json' },
+    })
+    await PUT(req as any, { params: { sessionId: session._id.toString() } })
+    const bal = await Balance.findOne({ clientId, coachId })
+    expect(bal?.sessionsUsed).toBe(0)
   })
 })

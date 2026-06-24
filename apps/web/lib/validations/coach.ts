@@ -34,7 +34,7 @@ export const sessionCreateSchema = z.object({
 })
 
 export const sessionUpdateSchema = z.object({
-  status: z.enum(['completed', 'cancelled']),
+  status: z.enum(['scheduled', 'completed', 'cancelled']),
   cancelReason: z.string().max(500).optional(),
 })
 

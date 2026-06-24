@@ -1,5 +1,4 @@
 import { Schema } from 'mongoose'
-import type { IBalance } from '@atleti/types'
 
 const TransactionSchema = new Schema(
   {
@@ -12,7 +11,7 @@ const TransactionSchema = new Schema(
   { _id: false }
 )
 
-export const BalanceSchema = new Schema<IBalance>({
+export const BalanceSchema = new Schema({
   clientId: { type: Schema.Types.ObjectId, ref: 'User', required: true },
   coachId: { type: Schema.Types.ObjectId, ref: 'User', required: true },
   sessionsTotal: { type: Number, default: 0 },

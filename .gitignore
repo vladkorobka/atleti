@@ -2,6 +2,8 @@ node_modules/
 .next/
 .env*.local
 .env
+.env.local.example
+.__tests__
 dist/
 .turbo/
 *.log

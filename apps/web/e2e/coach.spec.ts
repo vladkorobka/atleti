@@ -106,8 +106,8 @@ test.describe('Coach: Sessions', () => {
     await page.click('button:has-text("Додати заняття")')
     await expect(page.locator('[role="dialog"], .fixed.inset-0')).toBeVisible()
 
-    // Select client — option format: "Name (@nickname)"
-    await page.selectOption('select', { label: new RegExp(client.name) })
+    // Select client — перший (єдиний) клієнт у списку
+    await page.selectOption('select', { index: 0 })
 
     // Date / time inputs (type="date" and type="time" in CalendarClient.tsx)
     const tomorrow = new Date()

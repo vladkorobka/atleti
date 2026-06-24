@@ -1,5 +1,4 @@
 import { Schema } from 'mongoose'
-import type { ICoachBlock } from '@atleti/types'
 
 const RecurringSchema = new Schema(
   {
@@ -10,7 +9,7 @@ const RecurringSchema = new Schema(
   { _id: false }
 )
 
-export const CoachBlockSchema = new Schema<ICoachBlock>({
+export const CoachBlockSchema = new Schema({
   coachId: { type: Schema.Types.ObjectId, ref: 'User', required: true },
   type: { type: String, enum: ['time', 'day', 'vacation'], required: true },
   date: String,

@@ -1,7 +1,9 @@
 'use client'
 import { useState, useEffect, useCallback } from 'react'
-import { GlassCard, GlassModal, Badge } from '@atleti/ui'
+import { useRouter } from 'next/navigation'
+import { GlassCard, GlassModal, Badge, DatePicker, TimePicker } from '@atleti/ui'
 import { generateSlots, isDayBlocked, getSlotBlock } from '@/lib/slot-utils'
+import { kyivInputToUtc, kyivParts, kyivDateInput } from '@/lib/tz'
 import type { ICoachBlock, DowKey, IWorkingHoursDay } from '@atleti/types'
 
 interface Client { id: string; name: string; nickname: string }
@@ -87,6 +89,7 @@ function dateStr(d: Date): string {
 }
 
 export default function CalendarClient({ clients }: { clients: Client[] }) {
+  const router = useRouter()
   const now = new Date()
   const [year, setYear] = useState(now.getFullYear())
   const [month, setMonth] = useState(now.getMonth())
@@ -111,6 +114,7 @@ export default function CalendarClient({ clients }: { clients: Client[] }) {
     type: 'regular',
   })
   const [statusChanging, setStatusChanging] = useState(false)
+  const [statusReason, setStatusReason] = useState('')
 
   // new modals
   const [scheduleOpen, setScheduleOpen] = useState(false)
@@ -272,7 +276,7 @@ export default function CalendarClient({ clients }: { clients: Client[] }) {
     setSaving(true)
     setError('')
     try {
-      const scheduledAt = new Date(`${form.date}T${form.time}:00`).toISOString()
+      const scheduledAt = kyivInputToUtc(form.date, form.time).toISOString()
       const res = await fetch('/api/coach/sessions', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -282,6 +286,7 @@ export default function CalendarClient({ clients }: { clients: Client[] }) {
       if (!res.ok) { setError(typeof data.error === 'string' ? data.error : 'Помилка'); return }
       setAddOpen(false)
       await loadSessions()
+      router.refresh()
     } catch {
       setError('Помилка створення заняття')
     } finally {
@@ -290,12 +295,12 @@ export default function CalendarClient({ clients }: { clients: Client[] }) {
   }
 
   function openEditModal(s: Session) {
-    const d = new Date(s.scheduledAt)
+    const p = kyivParts(new Date(s.scheduledAt))
     const pad = (n: number) => String(n).padStart(2, '0')
     setError('')
     setEditForm({
-      date: `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`,
-      time: `${pad(d.getHours())}:${pad(d.getMinutes())}`,
+      date: `${p.year}-${pad(p.month)}-${pad(p.day)}`,
+      time: `${pad(p.hour)}:${pad(p.minute)}`,
       duration: String(s.duration),
       type: s.type,
     })
@@ -308,7 +313,7 @@ export default function CalendarClient({ clients }: { clients: Client[] }) {
     setSaving(true)
     setError('')
     try {
-      const scheduledAt = new Date(`${editForm.date}T${editForm.time}:00`).toISOString()
+      const scheduledAt = kyivInputToUtc(editForm.date, editForm.time).toISOString()
       const res = await fetch(`/api/coach/sessions/${editModal._id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
@@ -318,6 +323,7 @@ export default function CalendarClient({ clients }: { clients: Client[] }) {
       if (!res.ok) { setError(typeof data.error === 'string' ? data.error : 'Помилка'); return }
       setEditModal(null)
       await loadSessions()
+      router.refresh()
     } catch {
       setError('Помилка збереження заняття')
     } finally {
@@ -329,14 +335,19 @@ export default function CalendarClient({ clients }: { clients: Client[] }) {
     setStatusChanging(true)
     setError('')
     try {
+      const payload: { status: string; cancelReason?: string } = { status }
+      if (status === 'cancelled' && statusReason.trim()) payload.cancelReason = statusReason.trim()
       const res = await fetch(`/api/coach/sessions/${sessionId}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ status }),
+        body: JSON.stringify(payload),
       })
       if (res.ok) {
         setStatusModal(null)
+        setStatusReason('')
         await loadSessions()
+        // інвалідовуємо Router Cache, щоб баланс/дашборди на сусідніх сторінках були свіжі
+        router.refresh()
       } else {
         const data = await res.json().catch(() => ({}))
         setError(typeof data.error === 'string' ? data.error : 'Помилка зміни статусу')
@@ -349,16 +360,17 @@ export default function CalendarClient({ clients }: { clients: Client[] }) {
   }
 
   const grid = getMonthGrid(year, month)
-  const daysWithSessions = new Set(
-    sessions.map(s => {
-      const d = new Date(s.scheduledAt)
-      return `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`
-    })
-  )
+  // ключ календарного дня в київському поясі (місяць 0-based — узгоджено з grid getMonth())
+  const kyivDayKey = (d: Date) => { const p = kyivParts(d); return `${p.year}-${p.month - 1}-${p.day}` }
+  const isSameKyivDay = (date: Date, gridDay: Date) => {
+    const p = kyivParts(date)
+    return p.year === gridDay.getFullYear() && p.month - 1 === gridDay.getMonth() && p.day === gridDay.getDate()
+  }
+  const daysWithSessions = new Set(sessions.map(s => kyivDayKey(new Date(s.scheduledAt))))
   const dayKey = (d: Date) => `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`
 
   const selectedDaySessions = selectedDay
-    ? sessions.filter(s => isSameDay(new Date(s.scheduledAt), selectedDay))
+    ? sessions.filter(s => isSameKyivDay(new Date(s.scheduledAt), selectedDay))
     : []
 
   function buildDayTimeline() {
@@ -371,8 +383,8 @@ export default function CalendarClient({ clients }: { clients: Client[] }) {
     return daySlots.map(slot => {
       const [h, m] = slot.split(':').map(Number)
       const session = selectedDaySessions.find(s => {
-        const sd = new Date(s.scheduledAt)
-        return sd.getHours() === h && sd.getMinutes() === m
+        const p = kyivParts(new Date(s.scheduledAt))
+        return p.hour === h && p.minute === m
       })
       const block = getSlotBlock(blocks, slot, ds, dowKey, dayHours.slotDuration)
       return { slot, session, block }
@@ -510,15 +522,13 @@ export default function CalendarClient({ clients }: { clients: Client[] }) {
                           </span>
                           <div className="flex gap-2 shrink-0">
                             {session.status === 'scheduled' && (
-                              <>
-                                <button onClick={() => openEditModal(session)} className="text-xs text-gray-400 hover:text-gray-600 underline">
-                                  ред.
-                                </button>
-                                <button onClick={() => { setError(''); setStatusModal(session) }} className="text-xs text-gray-400 hover:text-gray-600 underline">
-                                  статус
-                                </button>
-                              </>
+                              <button onClick={() => openEditModal(session)} className="text-xs text-gray-400 hover:text-gray-600 underline">
+                                ред.
+                              </button>
                             )}
+                            <button onClick={() => { setError(''); setStatusReason(''); setStatusModal(session) }} className="text-xs text-gray-400 hover:text-gray-600 underline">
+                              статус
+                            </button>
                             <Badge variant={STATUS_LABELS[session.status]?.variant ?? 'default'}>
                               {STATUS_LABELS[session.status]?.label ?? session.status}
                             </Badge>
@@ -554,18 +564,16 @@ export default function CalendarClient({ clients }: { clients: Client[] }) {
                   <label htmlFor={`day-${key}`} className="text-sm font-medium text-gray-700 w-28">{label}</label>
                   {d.enabled && (
                     <div className="flex gap-1 items-center text-xs text-gray-500">
-                      <input
-                        type="time"
+                      <TimePicker
                         value={d.start}
-                        onChange={e => setScheduleForm(f => ({ ...f, [key]: { ...f[key], start: e.target.value } }))}
-                        className="border border-gray-300 rounded px-1 py-0.5 text-xs w-20 focus:outline-none focus:ring-1 focus:ring-gray-400"
+                        onChange={v => setScheduleForm(f => ({ ...f, [key]: { ...f[key], start: v } }))}
+                        className="w-20"
                       />
                       <span>–</span>
-                      <input
-                        type="time"
+                      <TimePicker
                         value={d.end}
-                        onChange={e => setScheduleForm(f => ({ ...f, [key]: { ...f[key], end: e.target.value } }))}
-                        className="border border-gray-300 rounded px-1 py-0.5 text-xs w-20 focus:outline-none focus:ring-1 focus:ring-gray-400"
+                        onChange={v => setScheduleForm(f => ({ ...f, [key]: { ...f[key], end: v } }))}
+                        className="w-20"
                       />
                       <input
                         type="number"
@@ -613,15 +621,13 @@ export default function CalendarClient({ clients }: { clients: Client[] }) {
 
           {blockForm.type === 'vacation' ? (
             <>
-              <input type="date" required value={blockForm.dateFrom}
-                onChange={e => setBlockForm(f => ({ ...f, dateFrom: e.target.value }))}
+              <DatePicker value={blockForm.dateFrom}
+                onChange={v => setBlockForm(f => ({ ...f, dateFrom: v }))}
                 placeholder="Від"
-                className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-400"
               />
-              <input type="date" required value={blockForm.dateTo}
-                onChange={e => setBlockForm(f => ({ ...f, dateTo: e.target.value }))}
+              <DatePicker value={blockForm.dateTo}
+                onChange={v => setBlockForm(f => ({ ...f, dateTo: v }))}
                 placeholder="До"
-                className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-400"
               />
             </>
           ) : (
@@ -660,30 +666,29 @@ export default function CalendarClient({ clients }: { clients: Client[] }) {
                       ))}
                     </select>
                   )}
-                  <input type="date" value={blockForm.recurringUntil}
-                    onChange={e => setBlockForm(f => ({ ...f, recurringUntil: e.target.value }))}
-                    min={new Date().toISOString().slice(0, 10)}
+                  <DatePicker value={blockForm.recurringUntil}
+                    onChange={v => setBlockForm(f => ({ ...f, recurringUntil: v }))}
+                    min={kyivDateInput(new Date())}
                     placeholder="До дати (необов'язково)"
-                    className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-400"
                   />
                 </div>
               ) : (
-                <input type="date" required value={blockForm.date}
-                  onChange={e => setBlockForm(f => ({ ...f, date: e.target.value }))}
-                  className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-400"
+                <DatePicker value={blockForm.date}
+                  onChange={v => setBlockForm(f => ({ ...f, date: v }))}
+                  min={kyivDateInput(new Date())}
                 />
               )}
 
               {blockForm.type === 'time' && (
-                <div className="flex gap-2">
-                  <input type="time" required value={blockForm.startTime}
-                    onChange={e => setBlockForm(f => ({ ...f, startTime: e.target.value }))}
-                    className="flex-1 border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-400"
+                <div className="flex gap-2 items-center">
+                  <TimePicker value={blockForm.startTime}
+                    onChange={v => setBlockForm(f => ({ ...f, startTime: v }))}
+                    className="flex-1"
                   />
                   <span className="self-center text-gray-400">–</span>
-                  <input type="time" required value={blockForm.endTime}
-                    onChange={e => setBlockForm(f => ({ ...f, endTime: e.target.value }))}
-                    className="flex-1 border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-400"
+                  <TimePicker value={blockForm.endTime}
+                    onChange={v => setBlockForm(f => ({ ...f, endTime: v }))}
+                    className="flex-1"
                   />
                 </div>
               )}
@@ -712,10 +717,8 @@ export default function CalendarClient({ clients }: { clients: Client[] }) {
             className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-400 bg-white">
             {clients.map(c => <option key={c.id} value={c.id}>{c.name} (@{c.nickname})</option>)}
           </select>
-          <input type="date" required value={form.date} onChange={e => setForm(f => ({ ...f, date: e.target.value }))}
-            className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-400" />
-          <input type="time" required value={form.time} onChange={e => setForm(f => ({ ...f, time: e.target.value }))}
-            className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-400" />
+          <DatePicker value={form.date} onChange={v => setForm(f => ({ ...f, date: v }))} min={kyivDateInput(new Date())} />
+          <TimePicker value={form.time} onChange={v => setForm(f => ({ ...f, time: v }))} />
           <div className="grid grid-cols-2 gap-2">
             <input type="number" min="15" max="480" value={form.duration}
               onChange={e => setForm(f => ({ ...f, duration: e.target.value }))}
@@ -736,16 +739,38 @@ export default function CalendarClient({ clients }: { clients: Client[] }) {
 
       {/* Status change modal */}
       {statusModal && (
-        <GlassModal open={true} onClose={() => { setStatusModal(null); setError('') }} title="Статус заняття">
+        <GlassModal open={true} onClose={() => { setStatusModal(null); setError(''); setStatusReason('') }} title="Статус заняття">
           <div className="space-y-2">
-            <button onClick={() => handleStatusChange(statusModal._id, 'completed')} disabled={statusChanging}
-              className={`w-full border border-green-300 text-green-700 rounded-md py-2.5 text-sm font-medium hover:bg-green-50 transition-colors${statusChanging ? ' opacity-50' : ''}`}>
-              Позначити як проведене
-            </button>
-            <button onClick={() => handleStatusChange(statusModal._id, 'cancelled')} disabled={statusChanging}
-              className={`w-full border border-red-300 text-red-700 rounded-md py-2.5 text-sm font-medium hover:bg-red-50 transition-colors${statusChanging ? ' opacity-50' : ''}`}>
-              Скасувати заняття
-            </button>
+            <p className="text-xs text-gray-500">
+              Поточний статус: <span className="font-medium">{STATUS_LABELS[statusModal.status]?.label ?? statusModal.status}</span>
+            </p>
+            {statusModal.status !== 'scheduled' && (
+              <button onClick={() => handleStatusChange(statusModal._id, 'scheduled')} disabled={statusChanging}
+                className={`w-full border border-amber-300 text-amber-700 rounded-md py-2.5 text-sm font-medium hover:bg-amber-50 transition-colors${statusChanging ? ' opacity-50' : ''}`}>
+                Повернути в заплановані
+              </button>
+            )}
+            {statusModal.status !== 'completed' && (
+              <button onClick={() => handleStatusChange(statusModal._id, 'completed')} disabled={statusChanging}
+                className={`w-full border border-green-300 text-green-700 rounded-md py-2.5 text-sm font-medium hover:bg-green-50 transition-colors${statusChanging ? ' opacity-50' : ''}`}>
+                Позначити як проведене
+              </button>
+            )}
+            {statusModal.status !== 'cancelled' && (
+              <>
+                <input
+                  type="text"
+                  value={statusReason}
+                  onChange={e => setStatusReason(e.target.value)}
+                  placeholder="Причина скасування (необов'язково)"
+                  className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-400"
+                />
+                <button onClick={() => handleStatusChange(statusModal._id, 'cancelled')} disabled={statusChanging}
+                  className={`w-full border border-red-300 text-red-700 rounded-md py-2.5 text-sm font-medium hover:bg-red-50 transition-colors${statusChanging ? ' opacity-50' : ''}`}>
+                  Скасувати заняття
+                </button>
+              </>
+            )}
             {error && <p className="text-xs text-red-500">{error}</p>}
           </div>
         </GlassModal>
@@ -755,10 +780,8 @@ export default function CalendarClient({ clients }: { clients: Client[] }) {
       {editModal && (
         <GlassModal open={true} onClose={() => { setEditModal(null); setError('') }} title="Редагувати заняття">
           <form onSubmit={handleEdit} className="space-y-3">
-            <input type="date" required value={editForm.date} onChange={e => setEditForm(f => ({ ...f, date: e.target.value }))}
-              className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-400" />
-            <input type="time" required value={editForm.time} onChange={e => setEditForm(f => ({ ...f, time: e.target.value }))}
-              className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-400" />
+            <DatePicker value={editForm.date} onChange={v => setEditForm(f => ({ ...f, date: v }))} />
+            <TimePicker value={editForm.time} onChange={v => setEditForm(f => ({ ...f, time: v }))} />
             <div className="grid grid-cols-2 gap-2">
               <input type="number" min="15" max="480" required value={editForm.duration}
                 onChange={e => setEditForm(f => ({ ...f, duration: e.target.value }))}

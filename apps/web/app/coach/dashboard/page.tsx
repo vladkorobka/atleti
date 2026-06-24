@@ -5,6 +5,8 @@ import { ClientCoach, Session } from '@atleti/db'
 import type { AtletiSession } from '@atleti/types'
 import { GlassCard } from '@atleti/ui'
 import Link from 'next/link'
+import { settlePastSessions } from '@/lib/settle-sessions'
+import { formatKyiv } from '@/lib/tz'
 
 const sessionTypeLabel: Record<string, string> = {
   regular: 'Тренування',
@@ -14,7 +16,7 @@ const sessionTypeLabel: Record<string, string> = {
 }
 
 function formatDate(date: Date): string {
-  return new Date(date).toLocaleDateString('uk-UA', {
+  return formatKyiv(date, {
     day: 'numeric',
     month: 'short',
     hour: '2-digit',
@@ -28,6 +30,7 @@ export default async function CoachDashboard() {
   if (!user || user.role !== 'coach') redirect('/login')
 
   await ensureDB()
+  await settlePastSessions({ coachId: user.userId })
 
   const now = new Date()
   const monthStart = new Date(now.getFullYear(), now.getMonth(), 1)

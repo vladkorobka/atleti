@@ -1,7 +1,6 @@
 import { Schema } from 'mongoose'
-import type { IContent } from '@atleti/types'
 
-export const ContentSchema = new Schema<IContent>({
+export const ContentSchema = new Schema({
   coachId: { type: Schema.Types.ObjectId, ref: 'User', required: true },
   targetType: { type: String, enum: ['all', 'client'], default: 'all' },
   targetId: { type: Schema.Types.ObjectId, ref: 'User' },

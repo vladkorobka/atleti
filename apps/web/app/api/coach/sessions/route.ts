@@ -4,6 +4,7 @@ import { ensureDB } from '@/lib/db'
 import { Session, ClientCoach } from '@atleti/db'
 import type { AtletiSession } from '@atleti/types'
 import { sessionCreateSchema } from '@/lib/validations/coach'
+import { settlePastSessions } from '@/lib/settle-sessions'
 
 export async function GET(req: NextRequest) {
   const session = await auth()
@@ -12,6 +13,7 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
   await ensureDB()
+  await settlePastSessions({ coachId: coachSession.userId })
 
   const url = new URL(req.url)
   const month = url.searchParams.get('month') // format: "2026-05"

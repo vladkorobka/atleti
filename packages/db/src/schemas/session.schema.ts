@@ -1,7 +1,6 @@
 import { Schema } from 'mongoose'
-import type { ISession } from '@atleti/types'
 
-export const SessionSchema = new Schema<ISession>({
+export const SessionSchema = new Schema({
   clientId: { type: Schema.Types.ObjectId, ref: 'User', required: true },
   coachId: { type: Schema.Types.ObjectId, ref: 'User', required: true },
   scheduledAt: { type: Date, required: true },

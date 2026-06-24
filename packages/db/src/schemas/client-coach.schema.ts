@@ -1,7 +1,6 @@
 import { Schema } from 'mongoose'
-import type { IClientCoach } from '@atleti/types'
 
-export const ClientCoachSchema = new Schema<IClientCoach>({
+export const ClientCoachSchema = new Schema({
   clientId: { type: Schema.Types.ObjectId, ref: 'User', required: true },
   coachId: { type: Schema.Types.ObjectId, ref: 'User', required: true },
   status: { type: String, enum: ['pending', 'active', 'rejected', 'terminated'], default: 'pending' },

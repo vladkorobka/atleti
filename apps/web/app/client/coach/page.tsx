@@ -48,7 +48,7 @@ export default async function CoachPage() {
           <p className="text-sm text-gray-700 mt-3">{coachProfile.bio}</p>
         )}
 
-        {coachProfile?.specializations?.length > 0 && (
+        {coachProfile?.specializations && coachProfile.specializations.length > 0 && (
           <div className="mt-3">
             <p className="text-xs text-gray-500 mb-1">Спеціалізації</p>
             <div className="flex flex-wrap gap-1.5">
