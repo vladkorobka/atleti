@@ -62,6 +62,11 @@ async function postSession(body: Record<string, unknown>) {
 }
 
 describe('POST /api/coach/sessions', () => {
+  beforeEach(async () => {
+    const { Balance } = await import('@atleti/db')
+    await Balance.create({ clientId, coachId, sessionsTotal: 100, sessionsUsed: 0, transactions: [] })
+  })
+
   it('creates a session', async () => {
     const res = await postSession({ clientId, scheduledAt: at('10:00'), duration: 60, type: 'regular' })
     expect(res.status).toBe(201)
@@ -69,9 +74,30 @@ describe('POST /api/coach/sessions', () => {
     expect(data.session.status).toBe('scheduled')
     expect(data.session.createdBy).toBe('coach')
   })
+
+  it('blocks adding when client has no balance left → 402', async () => {
+    const { Balance } = await import('@atleti/db')
+    // Заповнюємо весь пакет використаними заняттями — вільних немає
+    await Balance.updateOne({ clientId, coachId }, { sessionsTotal: 2, sessionsUsed: 2 })
+    const res = await postSession({ clientId, scheduledAt: at('10:00'), duration: 60, type: 'regular' })
+    expect(res.status).toBe(402)
+  })
+
+  it('blocks adding when reservations already fill the package → 402', async () => {
+    const { Balance } = await import('@atleti/db')
+    await Balance.updateOne({ clientId, coachId }, { sessionsTotal: 1, sessionsUsed: 0 })
+    expect((await postSession({ clientId, scheduledAt: at('10:00'), duration: 60, type: 'regular' })).status).toBe(201)
+    // другий слот — пакет вичерпано резервом
+    expect((await postSession({ clientId, scheduledAt: at('11:00'), duration: 60, type: 'regular' })).status).toBe(402)
+  })
 })
 
 describe('POST /api/coach/sessions — у межах графіку та блоки', () => {
+  beforeEach(async () => {
+    const { Balance } = await import('@atleti/db')
+    await Balance.create({ clientId, coachId, sessionsTotal: 100, sessionsUsed: 0, transactions: [] })
+  })
+
   it('поза робочими годинами (02:00) → 400', async () => {
     expect((await postSession({ clientId, scheduledAt: at('02:00'), duration: 60, type: 'regular' })).status).toBe(400)
   })
@@ -98,6 +124,11 @@ describe('POST /api/coach/sessions — у межах графіку та бло�
 })
 
 describe('POST /api/coach/sessions — конфлікти', () => {
+  beforeEach(async () => {
+    const { Balance } = await import('@atleti/db')
+    await Balance.create({ clientId, coachId, sessionsTotal: 100, sessionsUsed: 0, transactions: [] })
+  })
+
   it('regular поверх regular на той самий час → 409', async () => {
     expect((await postSession({ clientId, scheduledAt: at('10:00'), duration: 60, type: 'regular' })).status).toBe(201)
     expect((await postSession({ clientId, scheduledAt: at('10:00'), duration: 60, type: 'regular' })).status).toBe(409)

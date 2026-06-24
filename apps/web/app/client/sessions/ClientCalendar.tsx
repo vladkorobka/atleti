@@ -1,6 +1,7 @@
 'use client'
 import { useState, useEffect, useCallback } from 'react'
-import { GlassCard, Badge, CenteredSpinner, Spinner } from '@atleti/ui'
+import { GlassCard, Badge, CenteredSpinner, Spinner, ConfirmDialog } from '@atleti/ui'
+import { toast } from 'sonner'
 import { kyivParts, formatKyiv, kyivInputToUtc } from '@/lib/tz'
 
 interface Session {
@@ -64,6 +65,7 @@ export default function ClientCalendar() {
   const [sessions, setSessions] = useState<Session[]>([])
   const [selectedDay, setSelectedDay] = useState<Date | null>(null)
   const [cancelling, setCancelling] = useState<string | null>(null)
+  const [confirmCancelId, setConfirmCancelId] = useState<string | null>(null)
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(true)
 
@@ -75,7 +77,9 @@ export default function ClientCalendar() {
   const [booking, setBooking] = useState(false)
   const [bookingError, setBookingError] = useState('')
 
-  const [sessionsRemaining, setSessionsRemaining] = useState<number | null>(null)
+  interface BalanceInfo { total: number; used: number; reserved: number; available: number }
+  const [balanceInfo, setBalanceInfo] = useState<BalanceInfo | null>(null)
+  const sessionsRemaining = balanceInfo?.available ?? null
 
   const loadSessions = useCallback(async () => {
     try {
@@ -95,7 +99,14 @@ export default function ClientCalendar() {
       const res = await fetch('/api/client/balance')
       if (!res.ok) return
       const data = await res.json()
-      setSessionsRemaining(data.balance?.sessionsRemaining ?? 0)
+      const b = data.balance
+      if (!b) { setBalanceInfo(null); return }
+      setBalanceInfo({
+        total: b.sessionsTotal ?? 0,
+        used: b.sessionsUsed ?? 0,
+        reserved: b.sessionsReserved ?? 0,
+        available: b.sessionsAvailable ?? Math.max(0, (b.sessionsTotal ?? 0) - (b.sessionsUsed ?? 0) - (b.sessionsReserved ?? 0)),
+      })
     } catch {
       // баланс необов'язковий для відображення
     }
@@ -207,19 +218,16 @@ export default function ClientCalendar() {
 
   async function handleCancel(sessionId: string) {
     setCancelling(sessionId)
-    const res = await fetch(`/api/client/sessions/${sessionId}`, {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({}),
-    })
+    const res = await fetch(`/api/client/sessions/${sessionId}`, { method: 'DELETE' })
     setCancelling(null)
+    setConfirmCancelId(null)
     if (res.ok) {
-      await loadSessions()
-      if (selectedDay) await loadSlots(selectedDay)
+      toast.success('Заняття скасовано')
+      await Promise.all([loadSessions(), loadBalance(), ...(selectedDay ? [loadSlots(selectedDay)] : [])])
     } else if (res.status === 403) {
-      alert('Термін скасування минув')
+      toast.error('Термін скасування минув')
     } else {
-      alert('Помилка при скасуванні заняття')
+      toast.error('Помилка при скасуванні заняття')
     }
   }
 
@@ -231,15 +239,27 @@ export default function ClientCalendar() {
     <div className="space-y-4 pt-4">
       {error && <p className="text-sm text-red-500 text-center py-2">{error}</p>}
 
-      {sessionsRemaining !== null && (
-        <div className="flex items-center justify-end">
-          <span className="text-xs text-gray-500">
-            Залишок занять:{' '}
-            <span className={`font-semibold ${sessionsRemaining === 0 ? 'text-red-500' : 'text-gray-900'}`}>
-              {sessionsRemaining}
-            </span>
-          </span>
-        </div>
+      {balanceInfo && (
+        <GlassCard className="py-3">
+          <div className="grid grid-cols-4 gap-2 text-center">
+            <div>
+              <p className={`text-xl font-semibold ${balanceInfo.available === 0 ? 'text-red-500' : 'text-gray-900'}`}>{balanceInfo.available}</p>
+              <p className="text-[11px] text-gray-500 mt-0.5">Доступно</p>
+            </div>
+            <div>
+              <p className="text-xl font-semibold text-amber-600">{balanceInfo.reserved}</p>
+              <p className="text-[11px] text-gray-500 mt-0.5">Заплановано</p>
+            </div>
+            <div>
+              <p className="text-xl font-semibold text-gray-900">{balanceInfo.used}</p>
+              <p className="text-[11px] text-gray-500 mt-0.5">Проведено</p>
+            </div>
+            <div>
+              <p className="text-xl font-semibold text-gray-400">{balanceInfo.total}</p>
+              <p className="text-[11px] text-gray-500 mt-0.5">Всього</p>
+            </div>
+          </div>
+        </GlassCard>
       )}
 
       <div className="flex items-center justify-between">
@@ -322,7 +342,7 @@ export default function ClientCalendar() {
                       </p>
                       {s.status === 'scheduled' && isFuture && (
                         <button
-                          onClick={() => handleCancel(s._id)}
+                          onClick={() => setConfirmCancelId(s._id)}
                           disabled={cancelling === s._id}
                           className="text-xs text-red-500 hover:text-red-700 underline disabled:opacity-50"
                         >
@@ -412,6 +432,18 @@ export default function ClientCalendar() {
           </div>
         )}
       </div>
+
+      <ConfirmDialog
+        open={confirmCancelId !== null}
+        title="Скасувати заняття?"
+        message="Ви дійсно хочете скасувати це заняття? Його буде видалено з розкладу."
+        confirmLabel="Скасувати заняття"
+        cancelLabel="Назад"
+        danger
+        loading={cancelling !== null}
+        onConfirm={() => confirmCancelId && handleCancel(confirmCancelId)}
+        onClose={() => setConfirmCancelId(null)}
+      />
     </div>
   )
 }

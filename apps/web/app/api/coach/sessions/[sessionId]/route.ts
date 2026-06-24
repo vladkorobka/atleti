@@ -118,3 +118,28 @@ export async function PATCH(req: NextRequest, { params }: Params) {
   if (!updatedSession) return NextResponse.json({ error: 'Session not found or not editable' }, { status: 404 })
   return NextResponse.json({ session: updatedSession })
 }
+
+// Скасування заняття тренером = видалення з розкладу (а не статус "cancelled").
+// Якщо заняття було проведене — повертаємо списане заняття на баланс.
+export async function DELETE(_req: NextRequest, { params }: Params) {
+  const session = await auth()
+  const coachSession = session?.user as unknown as AtletiSession
+  if (!coachSession || coachSession.role !== 'coach') {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  }
+  await ensureDB()
+
+  const existing = await Session.findOne({ _id: params.sessionId, coachId: coachSession.userId })
+  if (!existing) return NextResponse.json({ error: 'Session not found' }, { status: 404 })
+
+  if (existing.status === 'completed') {
+    await Balance.updateOne(
+      { clientId: existing.clientId, coachId: coachSession.userId, sessionsUsed: { $gte: 1 } },
+      { $inc: { sessionsUsed: -1 } }
+    )
+  }
+
+  await Session.deleteOne({ _id: params.sessionId, coachId: coachSession.userId })
+
+  return NextResponse.json({ ok: true })
+}

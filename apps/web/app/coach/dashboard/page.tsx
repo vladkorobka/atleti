@@ -93,22 +93,18 @@ export default async function CoachDashboard() {
         </GlassCard>
       </div>
 
-      <div className="grid grid-cols-3 gap-3">
-        <Link href="/coach/clients">
-          <GlassCard className="text-center py-4 cursor-pointer hover:bg-white/70 transition-colors">
-            <p className="text-sm font-medium text-gray-700">Запросити клієнта</p>
-          </GlassCard>
-        </Link>
-        <Link href="/coach/calendar">
-          <GlassCard className="text-center py-4 cursor-pointer hover:bg-white/70 transition-colors">
-            <p className="text-sm font-medium text-gray-700">Переглянути календар</p>
-          </GlassCard>
-        </Link>
-        <Link href="/coach/profile">
-          <GlassCard className="text-center py-4 cursor-pointer hover:bg-white/70 transition-colors">
-            <p className="text-sm font-medium text-gray-700">Налаштування</p>
-          </GlassCard>
-        </Link>
+      <div className="grid grid-cols-3 gap-2">
+        {[
+          { href: '/coach/clients', label: 'Запросити клієнта' },
+          { href: '/coach/calendar', label: 'Переглянути календар' },
+          { href: '/coach/profile', label: 'Налаштування' },
+        ].map(({ href, label }) => (
+          <Link key={href} href={href} className="block h-full">
+            <GlassCard className="h-full min-h-[4rem] flex items-center justify-center text-center px-2 py-3 cursor-pointer hover:bg-white/70 transition-colors">
+              <span className="text-xs sm:text-sm font-medium text-gray-700 leading-tight break-words">{label}</span>
+            </GlassCard>
+          </Link>
+        ))}
       </div>
 
       <div>

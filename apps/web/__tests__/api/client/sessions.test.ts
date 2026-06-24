@@ -102,8 +102,8 @@ describe('GET /api/client/sessions', () => {
   })
 })
 
-describe('PUT /api/client/sessions/[sessionId]', () => {
-  it('cancels a session within deadline; balance unchanged (debit happens on completion)', async () => {
+describe('DELETE /api/client/sessions/[sessionId]', () => {
+  it('cancels (deletes) a session within deadline; balance unchanged (debit happens on completion)', async () => {
     const { Session, ClientCoach, Balance } = await import('@atleti/db')
     const session = await Session.create({
       clientId, coachId,
@@ -113,18 +113,13 @@ describe('PUT /api/client/sessions/[sessionId]', () => {
     await ClientCoach.create({ clientId, coachId, status: 'active' })
     await Balance.create({ clientId, coachId, sessionsTotal: 5, sessionsUsed: 3, transactions: [] })
 
-    const { PUT } = await import('@/app/api/client/sessions/[sessionId]/route')
-    const req = new Request(`http://localhost/api/client/sessions/${session._id}`, {
-      method: 'PUT',
-      body: JSON.stringify({ cancelReason: 'Не можу прийти' }),
-      headers: { 'Content-Type': 'application/json' },
-    })
-    const res = await PUT(req as any, { params: { sessionId: session._id.toString() } })
+    const { DELETE } = await import('@/app/api/client/sessions/[sessionId]/route')
+    const res = await DELETE({} as any, { params: { sessionId: session._id.toString() } })
     expect(res.status).toBe(200)
-    const data = await res.json()
-    expect(data.session.status).toBe('cancelled')
-    expect(data.session.cancelledByRole).toBe('client')
-    expect(data.session.cancelReason).toBe('Не можу прийти')
+
+    // Заняття видалено з розкладу
+    const stillThere = await Session.findById(session._id)
+    expect(stillThere).toBeNull()
 
     // Заплановане заняття не списувало баланс (резерв), тож скасування його не змінює
     const updatedBalance = await Balance.findOne({ clientId, coachId })
@@ -142,16 +137,14 @@ describe('PUT /api/client/sessions/[sessionId]', () => {
     })
     await ClientCoach.create({ clientId, coachId, status: 'active' })
 
-    const { PUT } = await import('@/app/api/client/sessions/[sessionId]/route')
-    const req = new Request(`http://localhost/api/client/sessions/${session._id}`, {
-      method: 'PUT',
-      body: JSON.stringify({}),
-      headers: { 'Content-Type': 'application/json' },
-    })
-    const res = await PUT(req as any, { params: { sessionId: session._id.toString() } })
+    const { DELETE } = await import('@/app/api/client/sessions/[sessionId]/route')
+    const res = await DELETE({} as any, { params: { sessionId: session._id.toString() } })
     expect(res.status).toBe(403)
     const data = await res.json()
     expect(data.error).toBe('Cancellation deadline passed')
+
+    // Заняття лишилось у розкладі
+    expect(await Session.findById(session._id)).not.toBeNull()
   })
 
   it('returns 404 when session belongs to another client', async () => {
@@ -163,17 +156,12 @@ describe('PUT /api/client/sessions/[sessionId]', () => {
     })
     await ClientCoach.create({ clientId, coachId, status: 'active' })
 
-    const { PUT } = await import('@/app/api/client/sessions/[sessionId]/route')
-    const req = new Request(`http://localhost/api/client/sessions/${session._id}`, {
-      method: 'PUT',
-      body: JSON.stringify({}),
-      headers: { 'Content-Type': 'application/json' },
-    })
-    const res = await PUT(req as any, { params: { sessionId: session._id.toString() } })
+    const { DELETE } = await import('@/app/api/client/sessions/[sessionId]/route')
+    const res = await DELETE({} as any, { params: { sessionId: session._id.toString() } })
     expect(res.status).toBe(404)
   })
 
-  it('returns 404 when session is already cancelled', async () => {
+  it('returns 404 when session is already cancelled (not scheduled)', async () => {
     const { Session, ClientCoach } = await import('@atleti/db')
     const session = await Session.create({
       clientId, coachId,
@@ -182,25 +170,15 @@ describe('PUT /api/client/sessions/[sessionId]', () => {
     })
     await ClientCoach.create({ clientId, coachId, status: 'active' })
 
-    const { PUT } = await import('@/app/api/client/sessions/[sessionId]/route')
-    const req = new Request(`http://localhost/api/client/sessions/${session._id}`, {
-      method: 'PUT',
-      body: JSON.stringify({}),
-      headers: { 'Content-Type': 'application/json' },
-    })
-    const res = await PUT(req as any, { params: { sessionId: session._id.toString() } })
+    const { DELETE } = await import('@/app/api/client/sessions/[sessionId]/route')
+    const res = await DELETE({} as any, { params: { sessionId: session._id.toString() } })
     expect(res.status).toBe(404)
   })
 
   it('returns 401 when not authenticated', async () => {
     vi.mocked((await import('@/lib/auth')).auth).mockResolvedValueOnce(null as any)
-    const { PUT } = await import('@/app/api/client/sessions/[sessionId]/route')
-    const req = new Request('http://localhost/api/client/sessions/fakeid', {
-      method: 'PUT',
-      body: JSON.stringify({}),
-      headers: { 'Content-Type': 'application/json' },
-    })
-    const res = await PUT(req as any, { params: { sessionId: 'fakeid' } })
+    const { DELETE } = await import('@/app/api/client/sessions/[sessionId]/route')
+    const res = await DELETE({} as any, { params: { sessionId: 'fakeid' } })
     expect(res.status).toBe(401)
   })
 })

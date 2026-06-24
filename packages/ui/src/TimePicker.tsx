@@ -88,14 +88,20 @@ interface TimePickerProps {
   value: string // "HH:MM"
   onChange: (v: string) => void
   step?: number
+  /** Обмеження діапазону годин (наприклад, робочий графік тренера), формат "HH:MM". */
+  minTime?: string
+  maxTime?: string
   className?: string
 }
 
-export function TimePicker({ value, onChange, step = 5, className = '' }: TimePickerProps) {
+export function TimePicker({ value, onChange, step = 5, minTime, maxTime, className = '' }: TimePickerProps) {
   const [open, setOpen] = useState(false)
   const btnRef = useRef<HTMLButtonElement>(null)
 
-  const hours = Array.from({ length: 24 }, (_, i) => i)
+  // Показуємо лише години в межах діапазону (минути ділимо за step).
+  const minH = minTime ? Number(minTime.split(':')[0]) : 0
+  const maxH = maxTime ? Number(maxTime.split(':')[0]) : 23
+  const hours = Array.from({ length: 24 }, (_, i) => i).filter(h => h >= minH && h <= maxH)
   const minutes = Array.from({ length: Math.ceil(60 / step) }, (_, i) => i * step)
 
   const [hStr, mStr] = (value || '00:00').split(':')

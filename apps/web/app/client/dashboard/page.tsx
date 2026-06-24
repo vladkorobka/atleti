@@ -44,17 +44,21 @@ export default async function ClientDashboard() {
 
   let balance = null
   let nextSession = null
+  let reserved = 0
 
   if (status === 'active' && relationship) {
     const coachId = (relationship.coachId as unknown as { _id?: string })._id ?? relationship.coachId
-    ;[balance, nextSession] = await Promise.all([
+    ;[balance, nextSession, reserved] = await Promise.all([
       Balance.findOne({ clientId: user.userId, coachId }),
       Session.findOne({
         clientId: user.userId,
         status: 'scheduled',
       }).sort({ scheduledAt: 1 }),
+      Session.countDocuments({ clientId: user.userId, coachId, status: 'scheduled' }),
     ])
   }
+
+  const available = balance ? Math.max(0, balance.sessionsTotal - balance.sessionsUsed - reserved) : 0
 
   return (
     <div className="space-y-4 pt-4">
@@ -87,10 +91,14 @@ export default async function ClientDashboard() {
         <>
           {balance ? (
             <GlassCard>
-              <p className="text-sm text-gray-500 mb-1">Залишилось занять</p>
-              <p className="text-3xl font-semibold text-gray-900">
-                {balance.sessionsTotal - balance.sessionsUsed}
+              <p className="text-sm text-gray-500 mb-1">Доступно для бронювання</p>
+              <p className={`text-3xl font-semibold ${available === 0 ? 'text-red-500' : 'text-gray-900'}`}>
+                {available}
                 <span className="text-base font-normal text-gray-400"> / {balance.sessionsTotal}</span>
+              </p>
+              <p className="text-xs text-gray-500 mt-2">
+                Заплановано: <span className="font-medium text-amber-600">{reserved}</span>
+                {'  ·  '}Проведено: <span className="font-medium text-gray-700">{balance.sessionsUsed}</span>
               </p>
             </GlassCard>
           ) : (

@@ -2,6 +2,7 @@
 import { signIn } from 'next-auth/react'
 import { useState } from 'react'
 import { GlassCard, Spinner } from '@atleti/ui'
+import { Logo } from '@/components/Logo'
 
 export default function LoginPage() {
   const [email, setEmail] = useState('')
@@ -25,7 +26,9 @@ export default function LoginPage() {
 
   return (
     <GlassCard className="w-full max-w-sm">
-      <h1 className="text-xl font-semibold mb-6 text-center">Вхід в Атлеті</h1>
+      <div className="flex justify-center mb-6">
+        <Logo className="h-12" />
+      </div>
 
       {/* Google-вхід тимчасово вимкнено */}
 

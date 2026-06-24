@@ -1,5 +1,6 @@
 export { GlassCard } from './GlassCard'
 export { GlassModal } from './GlassModal'
+export { ConfirmDialog } from './ConfirmDialog'
 export { Avatar } from './Avatar'
 export { Badge } from './Badge'
 export { TimePicker } from './TimePicker'

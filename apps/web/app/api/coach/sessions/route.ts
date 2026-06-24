@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { auth } from '@/lib/auth'
 import { ensureDB } from '@/lib/db'
-import { Session, ClientCoach, CoachProfile, CoachBlock } from '@atleti/db'
+import { Session, ClientCoach, CoachProfile, CoachBlock, Balance } from '@atleti/db'
 import type { AtletiSession, ICoachBlock } from '@atleti/types'
 import { sessionCreateSchema } from '@/lib/validations/coach'
 import { settlePastSessions } from '@/lib/settle-sessions'
@@ -59,6 +59,24 @@ export async function POST(req: NextRequest) {
   const start = new Date(scheduledAt)
   if (start <= new Date()) {
     return NextResponse.json({ error: 'Дата заняття має бути в майбутньому' }, { status: 400 })
+  }
+
+  // Баланс: не плануємо понад оплачений пакет. Заплановані заняття — це резерв
+  // (completed + scheduled не може перевищити sessionsTotal), тож при нульовому
+  // залишку додавати заняття не можна.
+  const balance = await Balance.findOne({ clientId, coachId: coachSession.userId })
+  const total = balance?.sessionsTotal ?? 0
+  const used = balance?.sessionsUsed ?? 0
+  const reserved = await Session.countDocuments({
+    clientId,
+    coachId: coachSession.userId,
+    status: 'scheduled',
+  })
+  if (used + reserved >= total) {
+    return NextResponse.json(
+      { error: 'У клієнта немає вільних занять на балансі. Поповніть баланс, щоб додати заняття.' },
+      { status: 402 }
+    )
   }
 
   // Лише в межах робочого графіку і поза блоками (обід тощо). Час — у київському поясі.

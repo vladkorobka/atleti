@@ -1,9 +1,10 @@
 import { auth } from '@/lib/auth'
 import { redirect } from 'next/navigation'
 import { ensureDB } from '@/lib/db'
-import { ClientCoach, Balance } from '@atleti/db'
+import { ClientCoach, Balance, Session } from '@atleti/db'
 import type { AtletiSession } from '@atleti/types'
 import { GlassCard, Badge } from '@atleti/ui'
+import { settlePastSessions } from '@/lib/settle-sessions'
 
 function formatDate(date: Date): string {
   return new Date(date).toLocaleDateString('uk-UA', {
@@ -20,6 +21,7 @@ export default async function BalancePage() {
   if (!user || user.role !== 'client') redirect('/login')
 
   await ensureDB()
+  await settlePastSessions({ clientId: user.userId })
 
   const relationship = await ClientCoach.findOne({
     clientId: user.userId,
@@ -53,7 +55,12 @@ export default async function BalancePage() {
     )
   }
 
-  const sessionsRemaining = balance.sessionsTotal - balance.sessionsUsed
+  const reserved = await Session.countDocuments({
+    clientId: user.userId,
+    coachId: relationship.coachId,
+    status: 'scheduled',
+  })
+  const sessionsAvailable = Math.max(0, balance.sessionsTotal - balance.sessionsUsed - reserved)
   const transactions = [...(balance.transactions ?? [])].reverse()
 
   return (
@@ -61,18 +68,22 @@ export default async function BalancePage() {
       <h1 className="text-2xl font-semibold text-gray-900">Баланс</h1>
 
       <GlassCard>
-        <div className="grid grid-cols-3 gap-4 text-center">
+        <div className="grid grid-cols-4 gap-2 text-center">
           <div>
-            <p className="text-3xl font-semibold text-gray-900">{sessionsRemaining}</p>
-            <p className="text-xs text-gray-500 mt-0.5">Залишилось</p>
+            <p className={`text-2xl font-semibold ${sessionsAvailable === 0 ? 'text-red-500' : 'text-gray-900'}`}>{sessionsAvailable}</p>
+            <p className="text-[11px] text-gray-500 mt-0.5">Доступно</p>
           </div>
           <div>
-            <p className="text-3xl font-semibold text-gray-900">{balance.sessionsTotal}</p>
-            <p className="text-xs text-gray-500 mt-0.5">Всього</p>
+            <p className="text-2xl font-semibold text-amber-600">{reserved}</p>
+            <p className="text-[11px] text-gray-500 mt-0.5">Заплановано</p>
           </div>
           <div>
-            <p className="text-3xl font-semibold text-gray-900">{balance.sessionsUsed}</p>
-            <p className="text-xs text-gray-500 mt-0.5">Використано</p>
+            <p className="text-2xl font-semibold text-gray-900">{balance.sessionsUsed}</p>
+            <p className="text-[11px] text-gray-500 mt-0.5">Проведено</p>
+          </div>
+          <div>
+            <p className="text-2xl font-semibold text-gray-400">{balance.sessionsTotal}</p>
+            <p className="text-[11px] text-gray-500 mt-0.5">Всього</p>
           </div>
         </div>
       </GlassCard>

@@ -6,6 +6,7 @@ import type { AtletiSession } from '@atleti/types'
 import { GlassCard, Avatar, Badge } from '@atleti/ui'
 import TopUpButton from './TopUpButton'
 import AnamnesisCard from './AnamnesisCard'
+import RemoveClientButton from './RemoveClientButton'
 import Link from 'next/link'
 import { settlePastSessions } from '@/lib/settle-sessions'
 import { formatKyiv } from '@/lib/tz'
@@ -85,6 +86,12 @@ export default async function ClientDetailPage({ params }: { params: { clientId:
           </div>
         )}
       </div>
+
+      {relationship.status === 'active' && (
+        <div className="pt-2">
+          <RemoveClientButton clientId={params.clientId} clientName={client.name} />
+        </div>
+      )}
     </div>
   )
 }

@@ -24,6 +24,8 @@ export default async function ClientsPage() {
   const activeCount = relationships.filter((r: any) => r.status === 'active').length
   const clientLimit = profile?.clientLimit ?? 10
   const canInvite = activeCount < clientLimit
+  // Завершені співпраці (terminated) не показуємо — клієнт відмовився або тренер відмовив
+  const visibleRelationships = relationships.filter((r: any) => r.status !== 'terminated')
 
   return (
     <div className="space-y-4 pt-4">
@@ -34,7 +36,7 @@ export default async function ClientsPage() {
 
       <InviteButton canInvite={canInvite} />
 
-      {relationships.length === 0 ? (
+      {visibleRelationships.length === 0 ? (
         <GlassCard>
           <p className="text-sm text-gray-400 text-center py-6">
             У вас поки немає клієнтів. Запросіть клієнта по нікнейму.
@@ -42,7 +44,7 @@ export default async function ClientsPage() {
         </GlassCard>
       ) : (
         <div className="space-y-2">
-          {relationships.map((rel: any) => {
+          {visibleRelationships.map((rel: any) => {
             const client = rel.clientId as any
             return (
               <Link key={rel._id.toString()} href={`/coach/clients/${client._id}`}>

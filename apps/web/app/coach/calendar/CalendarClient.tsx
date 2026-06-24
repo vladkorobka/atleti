@@ -1,12 +1,13 @@
 'use client'
 import { useState, useEffect, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
-import { GlassCard, GlassModal, Badge, DatePicker, TimePicker, CenteredSpinner, Toggle, Select } from '@atleti/ui'
+import { GlassCard, GlassModal, Badge, DatePicker, TimePicker, CenteredSpinner, Toggle, Select, ConfirmDialog } from '@atleti/ui'
+import { toast } from 'sonner'
 import { generateSlots, isDayBlocked, getSlotBlock } from '@/lib/slot-utils'
 import { kyivInputToUtc, kyivParts, kyivDateInput } from '@/lib/tz'
 import type { ICoachBlock, DowKey, IWorkingHoursDay } from '@atleti/types'
 
-interface Client { id: string; name: string; nickname: string }
+interface Client { id: string; name: string; nickname: string; remaining: number }
 interface Session {
   _id: string
   clientId: string | { name: string }
@@ -120,7 +121,8 @@ export default function CalendarClient({ clients }: { clients: Client[] }) {
     type: 'regular',
   })
   const [statusChanging, setStatusChanging] = useState(false)
-  const [statusReason, setStatusReason] = useState('')
+  const [confirmDeleteSession, setConfirmDeleteSession] = useState<Session | null>(null)
+  const [deleting, setDeleting] = useState(false)
 
   // new modals
   const [scheduleOpen, setScheduleOpen] = useState(false)
@@ -327,12 +329,19 @@ export default function CalendarClient({ clients }: { clients: Client[] }) {
         body: JSON.stringify({ clientId: form.clientId, scheduledAt, duration: Number(form.duration), type: form.type }),
       })
       const data = await res.json()
-      if (!res.ok) { setError(typeof data.error === 'string' ? data.error : 'Помилка'); return }
+      if (!res.ok) {
+        const msg = typeof data.error === 'string' ? data.error : 'Помилка'
+        setError(msg)
+        toast.error(msg)
+        return
+      }
       setAddOpen(false)
+      toast.success('Заняття додано')
       await loadSessions()
       router.refresh()
     } catch {
       setError('Помилка створення заняття')
+      toast.error('Помилка створення заняття')
     } finally {
       setSaving(false)
     }
@@ -388,27 +397,50 @@ export default function CalendarClient({ clients }: { clients: Client[] }) {
     setStatusChanging(true)
     setError('')
     try {
-      const payload: { status: string; cancelReason?: string } = { status }
-      if (status === 'cancelled' && statusReason.trim()) payload.cancelReason = statusReason.trim()
       const res = await fetch(`/api/coach/sessions/${sessionId}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload),
+        body: JSON.stringify({ status }),
       })
       if (res.ok) {
         setStatusModal(null)
-        setStatusReason('')
+        toast.success('Статус заняття оновлено')
         await loadSessions()
         // інвалідовуємо Router Cache, щоб баланс/дашборди на сусідніх сторінках були свіжі
         router.refresh()
       } else {
         const data = await res.json().catch(() => ({}))
-        setError(typeof data.error === 'string' ? data.error : 'Помилка зміни статусу')
+        const msg = typeof data.error === 'string' ? data.error : 'Помилка зміни статусу'
+        setError(msg)
+        toast.error(msg)
       }
     } catch {
       setError('Помилка зміни статусу')
+      toast.error('Помилка зміни статусу')
     } finally {
       setStatusChanging(false)
+    }
+  }
+
+  // Скасування заняття тренером = видалення з розкладу (з рефандом балансу, якщо було проведене).
+  async function handleDeleteSession(sessionId: string) {
+    setDeleting(true)
+    setError('')
+    try {
+      const res = await fetch(`/api/coach/sessions/${sessionId}`, { method: 'DELETE' })
+      if (res.ok) {
+        setConfirmDeleteSession(null)
+        setStatusModal(null)
+        toast.success('Заняття скасовано')
+        await loadSessions()
+        router.refresh()
+      } else {
+        toast.error('Не вдалося скасувати заняття')
+      }
+    } catch {
+      toast.error('Помилка скасування заняття')
+    } finally {
+      setDeleting(false)
     }
   }
 
@@ -445,9 +477,21 @@ export default function CalendarClient({ clients }: { clients: Client[] }) {
     })
   }
 
+  // Межі робочого графіку для обраної дати — щоб у виборі часу показувати лише робочі години.
+  function hoursForDate(d: string): { minTime?: string; maxTime?: string } {
+    if (!d) return {}
+    const [y, m, dd] = d.split('-').map(Number)
+    if (!y || !m || !dd) return {}
+    const dow = DOW_KEYS[new Date(Date.UTC(y, m - 1, dd)).getUTCDay()] as DowKey
+    const h = workingHours[dow]
+    return h ? { minTime: h.start, maxTime: h.end } : {}
+  }
+
   if (loading) return <CenteredSpinner />
 
   const timeline = buildDayTimeline()
+  // Обраний у модалці клієнт без вільних занять на балансі — блокуємо створення.
+  const selectedClientNoBalance = (clients.find(c => c.id === form.clientId)?.remaining ?? 0) <= 0
 
   return (
     <div className="space-y-4 pt-4">
@@ -585,7 +629,7 @@ export default function CalendarClient({ clients }: { clients: Client[] }) {
                                       ред.
                                     </button>
                                   )}
-                                  <button onClick={() => { setError(''); setStatusReason(''); setStatusModal(session) }} className="text-xs text-gray-400 hover:text-gray-600 underline">
+                                  <button onClick={() => { setError(''); setStatusModal(session) }} className="text-xs text-gray-400 hover:text-gray-600 underline">
                                     статус
                                   </button>
                                   <Badge variant={STATUS_LABELS[session.status]?.variant ?? 'default'}>
@@ -792,11 +836,14 @@ export default function CalendarClient({ clients }: { clients: Client[] }) {
           <Select
             value={form.clientId}
             onChange={v => setForm(f => ({ ...f, clientId: v }))}
-            options={clients.map(c => ({ value: c.id, label: `${c.name} (@${c.nickname})` }))}
+            options={clients.map(c => ({
+              value: c.id,
+              label: `${c.name} (@${c.nickname}) · ${c.remaining > 0 ? `${c.remaining} зан.` : 'немає занять'}`,
+            }))}
             placeholder="Оберіть клієнта"
           />
           <DatePicker value={form.date} onChange={v => setForm(f => ({ ...f, date: v }))} min={kyivDateInput(new Date())} />
-          <TimePicker value={form.time} onChange={v => setForm(f => ({ ...f, time: v }))} />
+          <TimePicker value={form.time} onChange={v => setForm(f => ({ ...f, time: v }))} {...hoursForDate(form.date)} />
           <div className="grid grid-cols-2 gap-2">
             <input type="number" min="15" max="480" value={form.duration}
               onChange={e => setForm(f => ({ ...f, duration: e.target.value }))}
@@ -808,9 +855,14 @@ export default function CalendarClient({ clients }: { clients: Client[] }) {
               options={SESSION_TYPES}
             />
           </div>
+          {selectedClientNoBalance && (
+            <p className="text-xs text-amber-600 bg-amber-50 rounded-md px-3 py-2">
+              У клієнта немає вільних занять на балансі. Поповніть баланс, щоб запланувати заняття.
+            </p>
+          )}
           {error && <p className="text-xs text-red-500">{error}</p>}
-          <button type="submit" disabled={saving}
-            className="w-full bg-gray-900 text-white rounded-md py-2.5 text-sm font-medium hover:bg-gray-700 disabled:opacity-50">
+          <button type="submit" disabled={saving || selectedClientNoBalance}
+            className="w-full bg-gray-900 text-white rounded-md py-2.5 text-sm font-medium hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed">
             {saving ? 'Збереження...' : 'Додати заняття'}
           </button>
         </form>
@@ -818,7 +870,7 @@ export default function CalendarClient({ clients }: { clients: Client[] }) {
 
       {/* Status change modal */}
       {statusModal && (
-        <GlassModal open={true} onClose={() => { setStatusModal(null); setError(''); setStatusReason('') }} title="Статус заняття">
+        <GlassModal open={true} onClose={() => { setStatusModal(null); setError('') }} title="Статус заняття">
           <div className="space-y-2">
             <p className="text-xs text-gray-500">
               Поточний статус: <span className="font-medium">{STATUS_LABELS[statusModal.status]?.label ?? statusModal.status}</span>
@@ -835,21 +887,10 @@ export default function CalendarClient({ clients }: { clients: Client[] }) {
                 Позначити як проведене
               </button>
             )}
-            {statusModal.status !== 'cancelled' && (
-              <>
-                <input
-                  type="text"
-                  value={statusReason}
-                  onChange={e => setStatusReason(e.target.value)}
-                  placeholder="Причина скасування (необов'язково)"
-                  className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-400"
-                />
-                <button onClick={() => handleStatusChange(statusModal._id, 'cancelled')} disabled={statusChanging}
-                  className={`w-full border border-red-300 text-red-700 rounded-md py-2.5 text-sm font-medium hover:bg-red-50 transition-colors${statusChanging ? ' opacity-50' : ''}`}>
-                  Скасувати заняття
-                </button>
-              </>
-            )}
+            <button onClick={() => setConfirmDeleteSession(statusModal)} disabled={statusChanging}
+              className={`w-full border border-red-300 text-red-700 rounded-md py-2.5 text-sm font-medium hover:bg-red-50 transition-colors${statusChanging ? ' opacity-50' : ''}`}>
+              Скасувати заняття
+            </button>
             {error && <p className="text-xs text-red-500">{error}</p>}
           </div>
         </GlassModal>
@@ -860,7 +901,7 @@ export default function CalendarClient({ clients }: { clients: Client[] }) {
         <GlassModal open={true} onClose={() => { setEditModal(null); setError('') }} title="Редагувати заняття">
           <form onSubmit={handleEdit} className="space-y-3">
             <DatePicker value={editForm.date} onChange={v => setEditForm(f => ({ ...f, date: v }))} />
-            <TimePicker value={editForm.time} onChange={v => setEditForm(f => ({ ...f, time: v }))} />
+            <TimePicker value={editForm.time} onChange={v => setEditForm(f => ({ ...f, time: v }))} {...hoursForDate(editForm.date)} />
             <div className="grid grid-cols-2 gap-2">
               <input type="number" min="15" max="480" required value={editForm.duration}
                 onChange={e => setEditForm(f => ({ ...f, duration: e.target.value }))}
@@ -880,6 +921,19 @@ export default function CalendarClient({ clients }: { clients: Client[] }) {
           </form>
         </GlassModal>
       )}
+
+      {/* Confirm session cancellation (delete) */}
+      <ConfirmDialog
+        open={confirmDeleteSession !== null}
+        title="Скасувати заняття?"
+        message="Заняття буде видалено з розкладу. Якщо воно вже проведене — списане заняття повернеться на баланс клієнта."
+        confirmLabel="Скасувати заняття"
+        cancelLabel="Назад"
+        danger
+        loading={deleting}
+        onConfirm={() => confirmDeleteSession && handleDeleteSession(confirmDeleteSession._id)}
+        onClose={() => setConfirmDeleteSession(null)}
+      />
     </div>
   )
 }
