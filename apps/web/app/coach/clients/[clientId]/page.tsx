@@ -5,6 +5,7 @@ import { ClientCoach, Balance, Session } from '@atleti/db'
 import type { AtletiSession } from '@atleti/types'
 import { GlassCard, Avatar, Badge } from '@atleti/ui'
 import TopUpButton from './TopUpButton'
+import AnamnesisCard from './AnamnesisCard'
 import Link from 'next/link'
 import { settlePastSessions } from '@/lib/settle-sessions'
 import { formatKyiv } from '@/lib/tz'
@@ -61,6 +62,8 @@ export default async function ClientDetailPage({ params }: { params: { clientId:
           <TopUpButton clientId={params.clientId} />
         </GlassCard>
       </div>
+
+      <AnamnesisCard clientId={params.clientId} initialAnamnesis={relationship.anamnesis ?? ''} />
 
       <div>
         <h2 className="text-base font-semibold text-gray-900 mb-2">Останні заняття</h2>

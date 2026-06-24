@@ -85,3 +85,17 @@ export function kyivTimeInput(date: Date): string {
   const p = kyivParts(date)
   return `${pad(p.hour)}:${pad(p.minute)}`
 }
+
+const DOW_KEYS = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'] as const
+export type SlotDowKey = (typeof DOW_KEYS)[number]
+
+// Дата (YYYY-MM-DD), день тижня і хвилини від початку доби — усе в київському поясі.
+// Заняття зберігаються як справжній UTC, тож настінний час дістаємо через kyivParts.
+export function kyivSlotParts(d: Date): { date: string; dowKey: SlotDowKey; startMin: number } {
+  const p = kyivParts(d)
+  const date = `${p.year}-${pad(p.month)}-${pad(p.day)}`
+  // день тижня саме київської календарної дати
+  const dowKey = DOW_KEYS[new Date(Date.UTC(p.year, p.month - 1, p.day)).getUTCDay()] as SlotDowKey
+  const startMin = p.hour * 60 + p.minute
+  return { date, dowKey, startMin }
+}

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { generateSlots, isDayBlocked, getBlockedSlots, getSlotBlock } from '../../lib/slot-utils'
+import { generateSlots, isDayBlocked, getBlockedSlots, getSlotBlock, timeBlockConflict, getTimeBlocksForDate } from '../../lib/slot-utils'
 import type { ICoachBlock } from '@atleti/types'
 
 describe('generateSlots', () => {
@@ -95,5 +95,41 @@ describe('getSlotBlock', () => {
   it('detects partial overlap: 60-min slot at 12:00 overlaps block 12:30–13:30', () => {
     const block: ICoachBlock = { _id: '1', coachId: 'c', type: 'time', date: '2026-05-14', startTime: '12:30', endTime: '13:30' }
     expect(getSlotBlock([block], '12:00', '2026-05-14', 'thu', 60)).toBe(block)
+  })
+})
+
+describe('timeBlockConflict', () => {
+  const lunch: ICoachBlock = { _id: '1', coachId: 'c', type: 'time', date: '2026-05-14', startTime: '12:00', endTime: '13:00', label: 'Обід' }
+
+  it('заняття всередині обіду — конфлікт', () => {
+    expect(timeBlockConflict([lunch], '2026-05-14', 'thu', 12 * 60 + 30, 13 * 60)).toBe(lunch)
+  })
+
+  it('частковий перетин (11:30–12:30 vs обід 12:00–13:00) — конфлікт', () => {
+    expect(timeBlockConflict([lunch], '2026-05-14', 'thu', 11 * 60 + 30, 12 * 60 + 30)).toBe(lunch)
+  })
+
+  it('стик впритул після обіду (13:00–14:00) — дозволено', () => {
+    expect(timeBlockConflict([lunch], '2026-05-14', 'thu', 13 * 60, 14 * 60)).toBeNull()
+  })
+
+  it('стик впритул перед обідом (11:00–12:00) — дозволено', () => {
+    expect(timeBlockConflict([lunch], '2026-05-14', 'thu', 11 * 60, 12 * 60)).toBeNull()
+  })
+
+  it('інша дата — без конфлікту', () => {
+    expect(timeBlockConflict([lunch], '2026-05-15', 'fri', 12 * 60, 13 * 60)).toBeNull()
+  })
+})
+
+describe('getTimeBlocksForDate', () => {
+  it('повертає лише time-блоки, що застосовуються до дати', () => {
+    const blocks: ICoachBlock[] = [
+      { _id: '1', coachId: 'c', type: 'time', date: '2026-05-14', startTime: '12:00', endTime: '13:00' },
+      { _id: '2', coachId: 'c', type: 'time', date: '2026-05-15', startTime: '12:00', endTime: '13:00' },
+      { _id: '3', coachId: 'c', type: 'day', date: '2026-05-14' },
+    ]
+    const result = getTimeBlocksForDate(blocks, '2026-05-14', 'thu')
+    expect(result.map(b => b._id)).toEqual(['1'])
   })
 })

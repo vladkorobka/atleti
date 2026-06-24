@@ -15,11 +15,11 @@ describe('middleware redirect logic', () => {
   })
 
   it('blocks client from /coach routes', () => {
-    expect(resolveRedirect('/coach/dashboard', { role: 'client', nickname: 'test' })).toBe('/dashboard')
+    expect(resolveRedirect('/coach/dashboard', { role: 'client', nickname: 'test' })).toBe('/')
   })
 
   it('blocks coach from /client routes', () => {
-    expect(resolveRedirect('/client/dashboard', { role: 'coach', nickname: 'test' })).toBe('/dashboard')
+    expect(resolveRedirect('/client/dashboard', { role: 'coach', nickname: 'test' })).toBe('/')
   })
 
   it('allows coach to access /coach routes', () => {

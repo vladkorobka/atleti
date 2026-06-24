@@ -118,7 +118,7 @@ export function DatePicker({ value, onChange, min, placeholder = 'Оберіть
         {label}
       </button>
       {open && (
-        <div className="absolute z-[60] mt-1 left-0 w-[min(18rem,calc(100vw-2.5rem))] bg-atleti-surface border border-atleti-line rounded-md shadow-soft-lg p-3">
+        <div className="absolute z-[60] mt-1 left-0 w-[min(18rem,calc(100vw-2.5rem))] bg-white border border-gray-200 rounded-md shadow-xl p-3">
           <div className="flex items-center justify-between mb-2">
             <button type="button" onClick={prev} className="p-1 rounded hover:bg-gray-100 text-gray-600">&lsaquo;</button>
             <span className="text-sm font-semibold text-gray-900">{MONTHS_UA[month]} {year}</span>

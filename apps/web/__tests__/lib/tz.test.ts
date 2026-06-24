@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { kyivInputToUtc, kyivParts, formatKyiv, kyivDateInput, kyivTimeInput } from '../../lib/tz'
+import { kyivInputToUtc, kyivParts, formatKyiv, kyivDateInput, kyivTimeInput, kyivSlotParts } from '../../lib/tz'
 
 describe('kyivInputToUtc', () => {
   it('interprets summer wall-clock as Kyiv (UTC+3)', () => {
@@ -32,6 +32,21 @@ describe('formatKyiv', () => {
   it('formats a UTC instant in Kyiv time', () => {
     const out = formatKyiv(new Date('2026-06-24T06:00:00.000Z'), { hour: '2-digit', minute: '2-digit' })
     expect(out).toContain('09:00')
+  })
+})
+
+describe('kyivSlotParts', () => {
+  it('derives Kyiv date, weekday and start minutes from a UTC instant (summer)', () => {
+    // 06:00Z = 09:00 Kyiv on Wed 24 Jun 2026
+    const parts = kyivSlotParts(new Date('2026-06-24T06:00:00.000Z'))
+    expect(parts).toEqual({ date: '2026-06-24', dowKey: 'wed', startMin: 9 * 60 })
+  })
+
+  it('uses the Kyiv calendar day at a day boundary', () => {
+    // 22:30Z on 23 Jun = 01:30 Kyiv on 24 Jun (next day)
+    const parts = kyivSlotParts(new Date('2026-06-23T22:30:00.000Z'))
+    expect(parts.date).toBe('2026-06-24')
+    expect(parts.startMin).toBe(90)
   })
 })
 

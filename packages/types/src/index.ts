@@ -44,6 +44,7 @@ export interface IClientCoach {
   status: ClientCoachStatus
   invitedAt: Date
   acceptedAt?: Date
+  anamnesis?: string
 }
 
 export interface ITransaction {

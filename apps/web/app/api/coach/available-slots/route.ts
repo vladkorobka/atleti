@@ -4,8 +4,10 @@ import { ensureDB } from '@/lib/db'
 import { ClientCoach, CoachProfile, Session, CoachBlock } from '@atleti/db'
 import type { AtletiSession, ICoachBlock, DowKey } from '@atleti/types'
 import { generateSlots, isDayBlocked, getBlockedSlots } from '@/lib/slot-utils'
+import { kyivInputToUtc, kyivParts } from '@/lib/tz'
 
 const DOW_KEYS = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'] as const
+const pad = (n: number) => String(n).padStart(2, '0')
 
 export async function GET(req: NextRequest) {
   const session = await auth()
@@ -36,9 +38,12 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ slots: [] })
   }
 
-  const dayStart = new Date(`${date}T00:00:00`)
-  const dayEnd = new Date(`${date}T23:59:59.999`)
-  const dowKey = DOW_KEYS[dayStart.getDay()] as DowKey
+  // date — київська календарна дата; день тижня рахуємо саме з неї
+  const [yy, mm, dd] = date.split('-').map(Number)
+  const dowKey = DOW_KEYS[new Date(Date.UTC(yy, mm - 1, dd)).getUTCDay()] as DowKey
+  // межі київської доби в UTC — для вибірки заброньованих занять
+  const dayStart = kyivInputToUtc(date, '00:00')
+  const dayEnd = kyivInputToUtc(date, '23:59')
   const dayHours = coachProfile.workingHours?.[dowKey]
 
   if (!dayHours?.start || !dayHours?.end || !dayHours?.slotDuration) {
@@ -61,10 +66,11 @@ export async function GET(req: NextRequest) {
     status: 'scheduled',
   }).select('scheduledAt')
 
+  // настінний (київський) час кожного заброньованого заняття
   const bookedTimes = new Set(
     bookedSessions.map(s => {
-      const d = new Date(s.scheduledAt)
-      return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`
+      const p = kyivParts(new Date(s.scheduledAt))
+      return `${pad(p.hour)}:${pad(p.minute)}`
     })
   )
 
@@ -72,9 +78,8 @@ export async function GET(req: NextRequest) {
   const available = allSlots.filter(slot => {
     if (blockedSlotSet.has(slot)) return false
     if (bookedTimes.has(slot)) return false
-    const [h, m] = slot.split(':').map(Number)
-    const slotDate = new Date(`${date}T${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}:00.000Z`)
-    return slotDate > now
+    // реальний момент слоту (київський настінний → UTC) має бути в майбутньому
+    return kyivInputToUtc(date, slot) > now
   })
 
   return NextResponse.json({ slots: available })

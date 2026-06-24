@@ -26,6 +26,10 @@ export const balanceTopupSchema = z.object({
   note: z.string().max(200).optional(),
 })
 
+export const anamnesisSchema = z.object({
+  anamnesis: z.string().max(5000),
+})
+
 export const sessionCreateSchema = z.object({
   clientId: z.string().min(1),
   scheduledAt: z.string().datetime(),

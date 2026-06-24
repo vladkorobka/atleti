@@ -1,6 +1,6 @@
 import type { ICoachBlock, DowKey } from '@atleti/types'
 
-function parseMinutes(time: string): number {
+export function parseMinutes(time: string): number {
   const [h, m] = time.split(':').map(Number)
   return h * 60 + m
 }
@@ -72,5 +72,24 @@ export function getSlotBlock(
     if (!blockAppliesToDate(b, date, dowKey)) return false
     if (!b.startTime || !b.endTime) return false
     return slotMin < parseMinutes(b.endTime) && (slotMin + slotDurationMin) > parseMinutes(b.startTime)
+  }) ?? null
+}
+
+// Усі time-блоки, що застосовуються до дати (для агенди дня).
+export function getTimeBlocksForDate(blocks: ICoachBlock[], date: string, dowKey: DowKey): ICoachBlock[] {
+  return blocks.filter(b => b.type === 'time' && blockAppliesToDate(b, date, dowKey))
+}
+
+// Чи перетинає інтервал [startMin, endMin) якийсь time-блок дати (напіввідкриті інтервали).
+export function timeBlockConflict(
+  blocks: ICoachBlock[],
+  date: string,
+  dowKey: DowKey,
+  startMin: number,
+  endMin: number,
+): ICoachBlock | null {
+  return getTimeBlocksForDate(blocks, date, dowKey).find(b => {
+    if (!b.startTime || !b.endTime) return false
+    return startMin < parseMinutes(b.endTime) && parseMinutes(b.startTime) < endMin
   }) ?? null
 }

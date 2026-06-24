@@ -1,9 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { auth } from '@/lib/auth'
 import { ensureDB } from '@/lib/db'
-import { Session, Balance } from '@atleti/db'
-import type { AtletiSession } from '@atleti/types'
+import { Session, Balance, CoachProfile, CoachBlock } from '@atleti/db'
+import type { AtletiSession, ICoachBlock } from '@atleti/types'
 import { sessionUpdateSchema, sessionEditSchema } from '@/lib/validations/coach'
+import { hasBlockingConflict, MAX_SESSION_DURATION_MIN } from '@/lib/session-conflict'
+import { checkWithinSchedule, slotParts } from '@/lib/coach-schedule'
 
 type Params = { params: { sessionId: string } }
 
@@ -73,6 +75,38 @@ export async function PATCH(req: NextRequest, { params }: Params) {
   const parsed = sessionEditSchema.safeParse(body)
   if (!parsed.success) {
     return NextResponse.json({ error: parsed.error.flatten().fieldErrors }, { status: 400 })
+  }
+
+  const start = new Date(parsed.data.scheduledAt)
+
+  // Лише в межах робочого графіку і поза блоками. Час — у київському поясі.
+  const { date: slotDate, dowKey, startMin } = slotParts(start)
+  const [coachProfile, coachBlocks] = await Promise.all([
+    CoachProfile.findOne({ userId: coachSession.userId }, 'workingHours'),
+    CoachBlock.find({ coachId: coachSession.userId }).lean() as unknown as Promise<ICoachBlock[]>,
+  ])
+  const schedCheck = checkWithinSchedule(
+    coachProfile?.workingHours?.[dowKey], coachBlocks, slotDate, dowKey, startMin, startMin + parsed.data.duration
+  )
+  if (!schedCheck.ok) {
+    return NextResponse.json({ error: schedCheck.error }, { status: 400 })
+  }
+
+  // Заборона переносу на зайнятий час (крім Спліт поверх Спліт). Виключаємо саме це заняття.
+  const windowStart = new Date(start.getTime() - MAX_SESSION_DURATION_MIN * 60_000)
+  const windowEnd = new Date(start.getTime() + parsed.data.duration * 60_000)
+  const candidates = await Session.find({
+    _id: { $ne: params.sessionId },
+    coachId: coachSession.userId,
+    status: 'scheduled',
+    scheduledAt: { $gte: windowStart, $lt: windowEnd },
+  }).select('scheduledAt duration type')
+
+  if (hasBlockingConflict(start, parsed.data.duration, parsed.data.type, candidates)) {
+    return NextResponse.json(
+      { error: 'На цей час уже заплановано заняття. Поверх можна додати лише Спліт-заняття.' },
+      { status: 409 }
+    )
   }
 
   const updatedSession = await Session.findOneAndUpdate(

@@ -94,7 +94,7 @@ describe('GET /api/client/sessions', () => {
   })
 
   it('returns 401 when not authenticated', async () => {
-    vi.mocked((await import('@/lib/auth')).auth).mockResolvedValueOnce(null)
+    vi.mocked((await import('@/lib/auth')).auth).mockResolvedValueOnce(null as any)
     const { GET } = await import('@/app/api/client/sessions/route')
     const req = new Request('http://localhost/api/client/sessions')
     const res = await GET(req as any)
@@ -103,7 +103,7 @@ describe('GET /api/client/sessions', () => {
 })
 
 describe('PUT /api/client/sessions/[sessionId]', () => {
-  it('cancels a session within deadline and refunds balance', async () => {
+  it('cancels a session within deadline; balance unchanged (debit happens on completion)', async () => {
     const { Session, ClientCoach, Balance } = await import('@atleti/db')
     const session = await Session.create({
       clientId, coachId,
@@ -126,11 +126,10 @@ describe('PUT /api/client/sessions/[sessionId]', () => {
     expect(data.session.cancelledByRole).toBe('client')
     expect(data.session.cancelReason).toBe('Не можу прийти')
 
+    // Заплановане заняття не списувало баланс (резерв), тож скасування його не змінює
     const updatedBalance = await Balance.findOne({ clientId, coachId })
-    expect(updatedBalance!.sessionsUsed).toBe(2)
-    const lastTx = updatedBalance!.transactions.at(-1)
-    expect(lastTx!.type).toBe('topup')
-    expect(lastTx!.sessions).toBe(1)
+    expect(updatedBalance!.sessionsUsed).toBe(3)
+    expect(updatedBalance!.transactions.length).toBe(0)
   })
 
   it('returns 403 when past cancellation deadline', async () => {
@@ -194,7 +193,7 @@ describe('PUT /api/client/sessions/[sessionId]', () => {
   })
 
   it('returns 401 when not authenticated', async () => {
-    vi.mocked((await import('@/lib/auth')).auth).mockResolvedValueOnce(null)
+    vi.mocked((await import('@/lib/auth')).auth).mockResolvedValueOnce(null as any)
     const { PUT } = await import('@/app/api/client/sessions/[sessionId]/route')
     const req = new Request('http://localhost/api/client/sessions/fakeid', {
       method: 'PUT',

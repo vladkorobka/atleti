@@ -60,15 +60,6 @@ function makeDefaultScheduleForm(wh: WorkingHoursMap): Record<DowKey, ScheduleDa
   return result
 }
 
-function workingHoursSummary(wh: WorkingHoursMap): string {
-  const parts: string[] = []
-  for (const { key, label } of ALL_SCHEDULE_DAYS) {
-    const h = wh[key]
-    if (h) parts.push(`${label.slice(0, 2)} ${h.start}–${h.end} · ${h.slotDuration} хв`)
-  }
-  return parts.length ? parts.join(' | ') : 'Графік не налаштовано'
-}
-
 function isSameDay(a: Date, b: Date) {
   return a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate()
 }
@@ -420,11 +411,6 @@ export default function CalendarClient({ clients }: { clients: Client[] }) {
         </button>
       </div>
 
-      {/* Working hours summary */}
-      <div className="text-xs text-gray-500 bg-gray-50 rounded-md px-3 py-2 leading-relaxed">
-        {workingHoursSummary(workingHours)}
-      </div>
-
       {/* Month nav */}
       <div className="flex items-center justify-between">
         <button onClick={prevMonth} className="p-2 rounded-md hover:bg-gray-100 transition-colors text-gray-600">&lsaquo;</button>
@@ -432,10 +418,10 @@ export default function CalendarClient({ clients }: { clients: Client[] }) {
         <button onClick={nextMonth} className="p-2 rounded-md hover:bg-gray-100 transition-colors text-gray-600">&rsaquo;</button>
       </div>
 
-      {/* Layout */}
-      <div className="lg:flex lg:gap-4">
+      {/* Layout — розклад дня під календарем (як на mobile) */}
+      <div className="space-y-4">
         {/* Calendar grid */}
-        <div className="lg:flex-1">
+        <div>
           <GlassCard className="p-2">
             <div className="grid grid-cols-7 mb-2">
               {DAYS_UA.map(d => (
@@ -479,9 +465,9 @@ export default function CalendarClient({ clients }: { clients: Client[] }) {
           </GlassCard>
         </div>
 
-        {/* Day panel */}
+        {/* Day panel — завжди під календарем */}
         {selectedDay && (
-          <div className="lg:w-72 mt-4 lg:mt-0">
+          <div>
             <div className="flex items-center justify-between mb-2">
               <h2 className="text-sm font-semibold text-gray-900">
                 {selectedDay.toLocaleDateString('uk-UA', { day: 'numeric', month: 'long' })}

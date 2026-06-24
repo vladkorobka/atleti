@@ -142,7 +142,7 @@ export function TimePicker({ value, onChange, step = 5, className = '' }: TimePi
         {display}
       </button>
       {open && (
-        <div className="absolute z-[60] mt-1 left-1/2 -translate-x-1/2 max-w-[calc(100vw-2.5rem)] bg-atleti-surface border border-atleti-line rounded-md shadow-soft-lg p-2">
+        <div className="absolute z-[60] mt-1 left-1/2 -translate-x-1/2 max-w-[calc(100vw-2.5rem)] bg-white border border-gray-200 rounded-md shadow-xl p-2">
           <div className="relative flex items-stretch justify-center gap-1">
             <div
               className="pointer-events-none absolute left-1 right-1 top-1/2 -translate-y-1/2 rounded-md bg-gray-900/5 border-y border-gray-200"
