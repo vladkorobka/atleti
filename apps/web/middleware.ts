@@ -15,5 +15,7 @@ export default auth((req: NextRequest & { auth: any }) => {
 })
 
 export const config = {
-  matcher: ['/((?!_next/static|_next/image|favicon.ico).*)'],
+  // Пропускаємо службові шляхи Next і статичні файли з /public (за розширенням),
+  // інакше middleware редіректить запити до зображень (логотип тощо) на /login.
+  matcher: ['/((?!_next/static|_next/image|favicon.ico|.*\\.(?:webp|png|jpg|jpeg|gif|svg|ico|webmanifest)$).*)'],
 }
