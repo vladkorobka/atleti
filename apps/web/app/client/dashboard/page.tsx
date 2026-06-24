@@ -3,7 +3,7 @@ import { redirect } from 'next/navigation'
 import { ensureDB } from '@/lib/db'
 import { ClientCoach, Balance, Session } from '@atleti/db'
 import type { AtletiSession } from '@atleti/types'
-import { GlassCard, Badge } from '@atleti/ui'
+import { GlassCard, Badge, WalletIcon, UserIcon } from '@atleti/ui'
 import Link from 'next/link'
 import { AcceptInviteButton } from '../coach/AcceptInviteButton'
 import { settlePastSessions } from '@/lib/settle-sessions'
@@ -128,14 +128,16 @@ export default async function ClientDashboard() {
           <div className="grid grid-cols-2 gap-3">
             <Link
               href="/client/balance"
-              className="bg-gray-900 text-white rounded-md px-4 py-2 text-sm font-medium text-center hover:bg-gray-800 transition-colors"
+              className="flex items-center justify-center gap-1.5 bg-gray-900 text-white rounded-md px-4 py-2.5 text-sm font-medium text-center shadow-sm hover:bg-gray-800 transition-colors"
             >
+              <WalletIcon className="h-4 w-4" />
               Баланс
             </Link>
             <Link
               href="/client/coach"
-              className="bg-white/60 backdrop-blur-sm border border-white/40 text-gray-900 rounded-md px-4 py-2 text-sm font-medium text-center hover:bg-white/80 transition-colors"
+              className="flex items-center justify-center gap-1.5 bg-white/60 backdrop-blur-sm border border-white/40 text-gray-900 rounded-md px-4 py-2.5 text-sm font-medium text-center shadow-sm hover:bg-white/80 transition-colors"
             >
+              <UserIcon className="h-4 w-4" />
               Тренер
             </Link>
           </div>

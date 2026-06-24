@@ -1,7 +1,7 @@
 'use client'
 import { useState, useEffect, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
-import { GlassCard, GlassModal, Badge, DatePicker, TimePicker, CenteredSpinner, Toggle, Select, ConfirmDialog } from '@atleti/ui'
+import { GlassCard, GlassModal, Badge, DatePicker, TimePicker, CenteredSpinner, Toggle, Select, ConfirmDialog, Button, Input, BanIcon } from '@atleti/ui'
 import { toast } from 'sonner'
 import { generateSlots, isDayBlocked, getSlotBlock } from '@/lib/slot-utils'
 import { kyivInputToUtc, kyivParts, kyivDateInput } from '@/lib/tz'
@@ -575,7 +575,7 @@ export default function CalendarClient({ clients }: { clients: Client[] }) {
                   >
                     {day.getDate()}
                     {fullyBlocked && !isSelected && (
-                      <span className="text-xs leading-none">🚫</span>
+                      <BanIcon className="h-3 w-3 text-red-400" />
                     )}
                     {!fullyBlocked && hasSessions && (
                       <span className={`w-1 h-1 rounded-full mt-0.5 ${isSelected ? 'bg-white' : 'bg-gray-400'}`} />
@@ -611,16 +611,20 @@ export default function CalendarClient({ clients }: { clients: Client[] }) {
                       <span className="text-xs font-mono text-gray-500 shrink-0 pt-1">{slot}</span>
                       {block ? (
                         <div className="flex items-center gap-1 flex-1 min-w-0">
-                          <span className="text-xs text-red-500 truncate">
-                            🚫 {block.label ?? 'Заблоковано'}
-                            {block.recurring && <span className="ml-1 text-gray-400">(recurring)</span>}
+                          <span className="flex min-w-0 items-center gap-1 text-xs text-red-500 truncate">
+                            <BanIcon className="h-3.5 w-3.5 shrink-0" />
+                            <span className="truncate">{block.label ?? 'Заблоковано'}
+                            {block.recurring && <span className="ml-1 text-gray-400">(recurring)</span>}</span>
                           </span>
                           <button
                             onClick={() => handleDeleteBlock(block._id)}
-                            className="shrink-0 text-xs text-gray-400 hover:text-red-500 transition-colors"
+                            className="shrink-0 text-gray-400 hover:text-red-500 transition-colors"
                             title="Видалити блок"
+                            aria-label="Видалити блок"
                           >
-                            ✕
+                            <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                              <path d="M6 6l12 12M18 6L6 18" />
+                            </svg>
                           </button>
                         </div>
                       ) : slotSessions.length > 0 ? (
@@ -707,10 +711,9 @@ export default function CalendarClient({ clients }: { clients: Client[] }) {
             )
           })}
           {error && <p className="text-xs text-red-500">{error}</p>}
-          <button type="submit" disabled={saving}
-            className="w-full bg-gray-900 text-white rounded-md py-2.5 text-sm font-medium hover:bg-gray-700 disabled:opacity-50">
+          <Button type="submit" loading={saving} fullWidth size="lg">
             {saving ? 'Збереження...' : 'Зберегти'}
-          </button>
+          </Button>
         </form>
       </GlassModal>
 
@@ -731,10 +734,17 @@ export default function CalendarClient({ clients }: { clients: Client[] }) {
                   editingBlockId === b._id ? 'border-gray-900 bg-gray-50' : 'border-gray-200'
                 }`}
               >
-                <span className="truncate text-gray-700">🚫 {blockSummary(b)}{b.label ? ` — ${b.label}` : ''}</span>
-                <div className="flex shrink-0 gap-2">
+                <span className="flex min-w-0 items-center gap-1.5 truncate text-gray-700">
+                  <BanIcon className="h-3.5 w-3.5 shrink-0 text-gray-400" />
+                  <span className="truncate">{blockSummary(b)}{b.label ? ` — ${b.label}` : ''}</span>
+                </span>
+                <div className="flex shrink-0 items-center gap-2">
                   <button type="button" onClick={() => openEditBlock(b)} className="text-gray-400 hover:text-gray-700 underline">ред.</button>
-                  <button type="button" onClick={() => handleDeleteBlock(b._id)} className="text-gray-400 hover:text-red-500" title="Видалити">✕</button>
+                  <button type="button" onClick={() => handleDeleteBlock(b._id)} className="text-gray-400 hover:text-red-500" title="Видалити" aria-label="Видалити">
+                    <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                      <path d="M6 6l12 12M18 6L6 18" />
+                    </svg>
+                  </button>
                 </div>
               </div>
             ))}
@@ -830,18 +840,16 @@ export default function CalendarClient({ clients }: { clients: Client[] }) {
             </>
           )}
 
-          <input type="text" value={blockForm.label}
+          <Input type="text" value={blockForm.label}
             onChange={e => setBlockForm(f => ({ ...f, label: e.target.value }))}
             placeholder="Назва (необов'язково)"
             maxLength={100}
-            className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-400"
           />
 
           {error && <p className="text-xs text-red-500">{error}</p>}
-          <button type="submit" disabled={saving}
-            className="w-full bg-gray-900 text-white rounded-md py-2.5 text-sm font-medium hover:bg-gray-700 disabled:opacity-50">
+          <Button type="submit" loading={saving} fullWidth size="lg">
             {saving ? 'Збереження...' : editingBlockId ? 'Зберегти зміни' : 'Заблокувати'}
-          </button>
+          </Button>
         </form>
       </GlassModal>
 
@@ -860,10 +868,9 @@ export default function CalendarClient({ clients }: { clients: Client[] }) {
           <DatePicker value={form.date} onChange={v => setForm(f => ({ ...f, date: v }))} min={kyivDateInput(new Date())} />
           <TimePicker value={form.time} onChange={v => setForm(f => ({ ...f, time: v }))} {...hoursForDate(form.date)} />
           <div className="grid grid-cols-2 gap-2">
-            <input type="number" min="15" max="480" value={form.duration}
+            <Input type="number" min="15" max="480" value={form.duration}
               onChange={e => setForm(f => ({ ...f, duration: e.target.value }))}
-              placeholder="Тривалість (хв)"
-              className="border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-400" />
+              placeholder="Тривалість (хв)" />
             <Select
               value={form.type}
               onChange={v => setForm(f => ({ ...f, type: v }))}
@@ -876,10 +883,9 @@ export default function CalendarClient({ clients }: { clients: Client[] }) {
             </p>
           )}
           {error && <p className="text-xs text-red-500">{error}</p>}
-          <button type="submit" disabled={saving || selectedClientNoBalance}
-            className="w-full bg-gray-900 text-white rounded-md py-2.5 text-sm font-medium hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed">
+          <Button type="submit" loading={saving} disabled={saving || selectedClientNoBalance} fullWidth size="lg">
             {saving ? 'Збереження...' : 'Додати заняття'}
-          </button>
+          </Button>
         </form>
       </GlassModal>
 
@@ -891,21 +897,24 @@ export default function CalendarClient({ clients }: { clients: Client[] }) {
               Поточний статус: <span className="font-medium">{STATUS_LABELS[statusModal.status]?.label ?? statusModal.status}</span>
             </p>
             {statusModal.status !== 'scheduled' && (
-              <button onClick={() => handleStatusChange(statusModal._id, 'scheduled')} disabled={statusChanging}
-                className={`w-full border border-amber-300 text-amber-700 rounded-md py-2.5 text-sm font-medium hover:bg-amber-50 transition-colors${statusChanging ? ' opacity-50' : ''}`}>
+              <Button variant="ghost" onClick={() => handleStatusChange(statusModal._id, 'scheduled')} disabled={statusChanging}
+                fullWidth size="lg"
+                className="border border-amber-300 text-amber-700 hover:bg-amber-50 active:bg-amber-100">
                 Повернути в заплановані
-              </button>
+              </Button>
             )}
             {statusModal.status !== 'completed' && (
-              <button onClick={() => handleStatusChange(statusModal._id, 'completed')} disabled={statusChanging}
-                className={`w-full border border-green-300 text-green-700 rounded-md py-2.5 text-sm font-medium hover:bg-green-50 transition-colors${statusChanging ? ' opacity-50' : ''}`}>
+              <Button variant="ghost" onClick={() => handleStatusChange(statusModal._id, 'completed')} disabled={statusChanging}
+                fullWidth size="lg"
+                className="border border-green-300 text-green-700 hover:bg-green-50 active:bg-green-100">
                 Позначити як проведене
-              </button>
+              </Button>
             )}
-            <button onClick={() => setConfirmDeleteSession(statusModal)} disabled={statusChanging}
-              className={`w-full border border-red-300 text-red-700 rounded-md py-2.5 text-sm font-medium hover:bg-red-50 transition-colors${statusChanging ? ' opacity-50' : ''}`}>
+            <Button variant="ghost" onClick={() => setConfirmDeleteSession(statusModal)} disabled={statusChanging}
+              fullWidth size="lg"
+              className="border border-red-300 text-red-700 hover:bg-red-50 active:bg-red-100">
               Скасувати заняття
-            </button>
+            </Button>
             {error && <p className="text-xs text-red-500">{error}</p>}
           </div>
         </GlassModal>
@@ -918,10 +927,9 @@ export default function CalendarClient({ clients }: { clients: Client[] }) {
             <DatePicker value={editForm.date} onChange={v => setEditForm(f => ({ ...f, date: v }))} />
             <TimePicker value={editForm.time} onChange={v => setEditForm(f => ({ ...f, time: v }))} {...hoursForDate(editForm.date)} />
             <div className="grid grid-cols-2 gap-2">
-              <input type="number" min="15" max="480" required value={editForm.duration}
+              <Input type="number" min="15" max="480" required value={editForm.duration}
                 onChange={e => setEditForm(f => ({ ...f, duration: e.target.value }))}
-                placeholder="Тривалість (хв)"
-                className="border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-400" />
+                placeholder="Тривалість (хв)" />
               <Select
                 value={editForm.type}
                 onChange={v => setEditForm(f => ({ ...f, type: v }))}
@@ -929,10 +937,9 @@ export default function CalendarClient({ clients }: { clients: Client[] }) {
               />
             </div>
             {error && <p className="text-xs text-red-500">{error}</p>}
-            <button type="submit" disabled={saving}
-              className="w-full bg-gray-900 text-white rounded-md py-2.5 text-sm font-medium hover:bg-gray-700 disabled:opacity-50">
+            <Button type="submit" loading={saving} fullWidth size="lg">
               {saving ? 'Збереження...' : 'Зберегти'}
-            </button>
+            </Button>
           </form>
         </GlassModal>
       )}

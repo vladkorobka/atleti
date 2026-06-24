@@ -1,7 +1,7 @@
 'use client'
 import { Suspense, useState } from 'react'
 import { useSearchParams } from 'next/navigation'
-import { GlassCard, Spinner } from '@atleti/ui'
+import { GlassCard, Spinner, Button, Input } from '@atleti/ui'
 
 function ResetForm() {
   const token = useSearchParams().get('token') ?? ''
@@ -40,7 +40,7 @@ function ResetForm() {
     return (
       <div className="space-y-4">
         <p className="text-sm text-gray-600 text-center">Пароль змінено. Тепер можна увійти.</p>
-        <a href="/login" className="block text-center bg-gray-900 text-white rounded-md py-2.5 text-sm font-medium hover:bg-gray-700 transition-colors">
+        <a href="/login" className="block text-center bg-gray-900 text-white rounded-md py-2.5 text-sm font-medium shadow-sm hover:bg-gray-700 transition-colors">
           Увійти
         </a>
       </div>
@@ -58,21 +58,18 @@ function ResetForm() {
 
   return (
     <form onSubmit={handleSubmit} className="space-y-3">
-      <input
+      <Input
         type="password" value={password} onChange={(e) => setPassword(e.target.value)}
         placeholder="Новий пароль" required
-        className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-400"
       />
-      <input
+      <Input
         type="password" value={confirm} onChange={(e) => setConfirm(e.target.value)}
         placeholder="Повторіть пароль" required
-        className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-400"
       />
       {error && <p className="text-red-500 text-xs">{error}</p>}
-      <button type="submit" disabled={loading}
-        className="w-full bg-gray-900 text-white rounded-md py-2.5 text-sm font-medium hover:bg-gray-700 disabled:opacity-50 transition-colors">
+      <Button type="submit" loading={loading} fullWidth size="lg">
         {loading ? 'Збереження...' : 'Встановити пароль'}
-      </button>
+      </Button>
     </form>
   )
 }

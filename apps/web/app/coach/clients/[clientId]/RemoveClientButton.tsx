@@ -1,7 +1,7 @@
 'use client'
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { ConfirmDialog } from '@atleti/ui'
+import { ConfirmDialog, Button, TrashIcon } from '@atleti/ui'
 import { toast } from 'sonner'
 
 export default function RemoveClientButton({ clientId, clientName }: { clientId: string; clientName: string }) {
@@ -29,12 +29,16 @@ export default function RemoveClientButton({ clientId, clientName }: { clientId:
 
   return (
     <>
-      <button
+      <Button
+        variant="ghost"
         onClick={() => setOpen(true)}
-        className="w-full border border-red-300 text-red-600 rounded-md py-2 text-sm font-medium hover:bg-red-50 transition-colors"
+        fullWidth
+        size="lg"
+        leftIcon={<TrashIcon />}
+        className="border border-red-300 text-red-600 shadow-sm hover:bg-red-50 active:bg-red-100"
       >
         Відмовитися від клієнта
-      </button>
+      </Button>
       <ConfirmDialog
         open={open}
         title="Відмовитися від клієнта?"

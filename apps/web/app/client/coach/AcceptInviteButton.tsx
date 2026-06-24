@@ -1,6 +1,7 @@
 'use client'
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
+import { Button, CheckIcon } from '@atleti/ui'
 
 export function AcceptInviteButton() {
   const [loading, setLoading] = useState(false)
@@ -21,13 +22,14 @@ export function AcceptInviteButton() {
 
   return (
     <>
-      <button
+      <Button
         onClick={handleAccept}
-        disabled={loading}
-        className="bg-gray-900 text-white rounded-md px-4 py-2 text-sm font-medium hover:bg-gray-700 transition-colors disabled:opacity-50"
+        loading={loading}
+        leftIcon={<CheckIcon />}
+        size="lg"
       >
         {loading ? 'Прийняття...' : 'Прийняти запрошення'}
-      </button>
+      </Button>
       {error && <p className="text-xs text-red-500 mt-2">{error}</p>}
     </>
   )

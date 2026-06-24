@@ -1,6 +1,6 @@
 'use client'
 import { useState, useEffect, useCallback } from 'react'
-import { GlassCard, Badge, CenteredSpinner, Spinner, ConfirmDialog } from '@atleti/ui'
+import { GlassCard, Badge, CenteredSpinner, Spinner, ConfirmDialog, Button } from '@atleti/ui'
 import { toast } from 'sonner'
 import { kyivParts, formatKyiv, kyivInputToUtc } from '@/lib/tz'
 
@@ -417,13 +417,9 @@ export default function ClientCalendar() {
                       {bookingError && (
                         <p className="text-xs text-red-500">{bookingError}</p>
                       )}
-                      <button
-                        onClick={handleBook}
-                        disabled={booking}
-                        className="w-full py-2 text-sm font-medium rounded-md bg-gray-900 text-white hover:bg-gray-700 disabled:opacity-50 transition-colors"
-                      >
+                      <Button onClick={handleBook} loading={booking} fullWidth size="lg">
                         {booking ? 'Бронювання...' : 'Забронювати'}
-                      </button>
+                      </Button>
                     </GlassCard>
                   )}
                 </div>

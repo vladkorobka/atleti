@@ -1,7 +1,7 @@
 'use client'
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { GlassModal } from '@atleti/ui'
+import { GlassModal, Button, Input } from '@atleti/ui'
 
 interface Props { clientId: string }
 
@@ -33,30 +33,24 @@ export default function TopUpButton({ clientId }: Props) {
 
   return (
     <>
-      <button
-        onClick={() => setOpen(true)}
-        className="w-full border border-gray-300 rounded-md py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors"
-      >
+      <Button variant="secondary" onClick={() => setOpen(true)} fullWidth size="lg">
         Поповнити баланс
-      </button>
+      </Button>
       <GlassModal open={open} onClose={() => setOpen(false)} title="Поповнити баланс">
         <form onSubmit={handleTopUp} className="space-y-3">
-          <input
+          <Input
             type="number" min="1" max="1000" required
             value={sessions} onChange={e => setSessions(e.target.value)}
             placeholder="Кількість занять"
-            className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-400"
           />
-          <input
+          <Input
             value={note} onChange={e => setNote(e.target.value)}
             placeholder="Примітка (необов'язково)"
-            className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-400"
           />
           {error && <p className="text-xs text-red-500">{error}</p>}
-          <button type="submit" disabled={loading}
-            className="w-full bg-gray-900 text-white rounded-md py-2.5 text-sm font-medium hover:bg-gray-700 disabled:opacity-50">
+          <Button type="submit" loading={loading} fullWidth size="lg">
             {loading ? 'Збереження...' : 'Поповнити'}
-          </button>
+          </Button>
         </form>
       </GlassModal>
     </>

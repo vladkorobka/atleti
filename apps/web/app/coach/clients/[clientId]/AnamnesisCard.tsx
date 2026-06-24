@@ -1,7 +1,7 @@
 'use client'
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { GlassCard } from '@atleti/ui'
+import { GlassCard, Button } from '@atleti/ui'
 
 interface Props {
   clientId: string
@@ -51,19 +51,15 @@ export default function AnamnesisCard({ clientId, initialAnamnesis }: Props) {
           rows={6}
           maxLength={5000}
           placeholder="Історія, травми, цілі, обмеження, нотатки про клієнта…"
-          className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm resize-y focus:outline-none focus:ring-2 focus:ring-gray-400"
+          className="w-full resize-y rounded-md border border-gray-300 bg-white/70 px-3 py-2 text-sm text-gray-900 shadow-sm backdrop-blur-sm placeholder:text-gray-400 transition-colors focus:border-gray-300 focus:outline-none focus:ring-2 focus:ring-gray-400/60"
         />
         <div className="flex items-center justify-between">
           <span className="text-xs text-gray-400">{value.length} / 5000</span>
           {error && <span className="text-xs text-red-500">{error}</span>}
           {saved && !dirty && <span className="text-xs text-green-600">Збережено</span>}
-          <button
-            onClick={handleSave}
-            disabled={saving || !dirty}
-            className="bg-gray-900 text-white rounded-md px-4 py-1.5 text-sm font-medium hover:bg-gray-700 disabled:opacity-50"
-          >
+          <Button onClick={handleSave} loading={saving} disabled={saving || !dirty} size="lg">
             {saving ? 'Збереження...' : 'Зберегти'}
-          </button>
+          </Button>
         </div>
       </GlassCard>
     </div>

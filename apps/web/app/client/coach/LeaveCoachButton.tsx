@@ -1,7 +1,7 @@
 'use client'
 import { useRouter } from 'next/navigation'
 import { useState } from 'react'
-import { ConfirmDialog } from '@atleti/ui'
+import { ConfirmDialog, Button } from '@atleti/ui'
 import { toast } from 'sonner'
 
 export function LeaveCoachButton() {
@@ -30,12 +30,9 @@ export function LeaveCoachButton() {
 
   return (
     <>
-      <button
-        onClick={() => setOpen(true)}
-        className="bg-red-500 text-white rounded-md px-4 py-2 text-sm font-medium hover:bg-red-600 transition-colors"
-      >
+      <Button variant="danger" onClick={() => setOpen(true)} size="lg">
         Відключитись від тренера
-      </button>
+      </Button>
       <ConfirmDialog
         open={open}
         title="Відключитися від тренера?"

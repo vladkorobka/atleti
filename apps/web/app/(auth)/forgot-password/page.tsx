@@ -1,6 +1,6 @@
 'use client'
 import { useState } from 'react'
-import { GlassCard } from '@atleti/ui'
+import { GlassCard, Button, Input } from '@atleti/ui'
 
 export default function ForgotPasswordPage() {
   const [email, setEmail] = useState('')
@@ -40,15 +40,13 @@ export default function ForgotPasswordPage() {
             Введіть email — надішлемо посилання для встановлення нового паролю.
           </p>
           <form onSubmit={handleSubmit} className="space-y-3">
-            <input
+            <Input
               type="email" value={email} onChange={(e) => setEmail(e.target.value)}
               placeholder="Email" required
-              className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-400"
             />
-            <button type="submit" disabled={loading}
-              className="w-full bg-gray-900 text-white rounded-md py-2.5 text-sm font-medium hover:bg-gray-700 disabled:opacity-50 transition-colors">
+            <Button type="submit" loading={loading} fullWidth size="lg">
               {loading ? 'Надсилання...' : 'Надіслати посилання'}
-            </button>
+            </Button>
           </form>
           <p className="text-center text-xs text-gray-500 mt-4">
             <a href="/login" className="underline hover:text-gray-700">Повернутися до входу</a>

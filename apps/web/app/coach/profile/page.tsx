@@ -1,7 +1,7 @@
 'use client'
 import { useState, useEffect } from 'react'
 import { useSession } from 'next-auth/react'
-import { GlassCard, CenteredSpinner } from '@atleti/ui'
+import { GlassCard, CenteredSpinner, Button, Input } from '@atleti/ui'
 
 export default function ProfilePage() {
   const { update } = useSession()
@@ -107,80 +107,59 @@ export default function ProfilePage() {
       <GlassCard>
         <h2 className="text-sm font-semibold text-gray-700 mb-4">Акаунт</h2>
         <form onSubmit={handleAccountSave} className="space-y-4">
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Ім&apos;я</label>
-            <input
-              value={name}
-              onChange={e => setName(e.target.value)}
-              required
-              maxLength={100}
-              className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-400"
-            />
-          </div>
+          <Input
+            label="Ім'я"
+            value={name}
+            onChange={e => setName(e.target.value)}
+            required
+            maxLength={100}
+          />
 
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Email</label>
-            <input
-              type="email"
-              value={email}
-              onChange={e => setEmail(e.target.value)}
-              required
-              className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-400"
-            />
-          </div>
+          <Input
+            label="Email"
+            type="email"
+            value={email}
+            onChange={e => setEmail(e.target.value)}
+            required
+          />
 
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Нікнейм</label>
-            <div className="relative">
-              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-gray-400">@</span>
-              <input
-                value={nickname}
-                onChange={e => setNickname(e.target.value.toLowerCase())}
-                required
-                minLength={3}
-                maxLength={30}
-                pattern="[a-z0-9_]+"
-                className="w-full border border-gray-300 rounded-md pl-7 pr-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-400"
-              />
-            </div>
-          </div>
+          <Input
+            label="Нікнейм"
+            value={nickname}
+            onChange={e => setNickname(e.target.value.toLowerCase())}
+            required
+            minLength={3}
+            maxLength={30}
+            pattern="[a-z0-9_]+"
+            leftIcon={<span className="text-sm">@</span>}
+          />
 
           {!isGoogle && (
             <div className="border-t border-gray-200 pt-4 space-y-3">
               <p className="text-sm font-medium text-gray-700">Змінити пароль</p>
-              <div>
-                <label className="block text-xs text-gray-500 mb-1">Поточний пароль</label>
-                <input
-                  type="password"
-                  value={currentPassword}
-                  onChange={e => setCurrentPassword(e.target.value)}
-                  autoComplete="current-password"
-                  className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-400"
-                />
-              </div>
-              <div>
-                <label className="block text-xs text-gray-500 mb-1">Новий пароль</label>
-                <input
-                  type="password"
-                  value={newPassword}
-                  onChange={e => setNewPassword(e.target.value)}
-                  autoComplete="new-password"
-                  minLength={6}
-                  className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-400"
-                />
-              </div>
+              <Input
+                label="Поточний пароль"
+                type="password"
+                value={currentPassword}
+                onChange={e => setCurrentPassword(e.target.value)}
+                autoComplete="current-password"
+              />
+              <Input
+                label="Новий пароль"
+                type="password"
+                value={newPassword}
+                onChange={e => setNewPassword(e.target.value)}
+                autoComplete="new-password"
+                minLength={6}
+              />
             </div>
           )}
 
           {accountError && <p className="text-xs text-red-500">{accountError}</p>}
 
-          <button
-            type="submit"
-            disabled={savingAccount}
-            className="w-full bg-gray-900 text-white rounded-md py-2.5 text-sm font-medium hover:bg-gray-700 transition-colors disabled:opacity-50"
-          >
+          <Button type="submit" loading={savingAccount} fullWidth size="lg">
             {savingAccount ? 'Збереження...' : savedAccount ? 'Збережено' : 'Зберегти акаунт'}
-          </button>
+          </Button>
         </form>
       </GlassCard>
 
@@ -189,31 +168,30 @@ export default function ProfilePage() {
         <h2 className="text-sm font-semibold text-gray-700 mb-4">Профіль тренера</h2>
         <form onSubmit={handleSave} className="space-y-4">
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Про себе</label>
+            <label className="mb-1.5 block text-sm font-medium text-gray-700">Про себе</label>
             <textarea
               value={bio}
               onChange={e => setBio(e.target.value)}
               rows={4}
               maxLength={1000}
               placeholder="Розкажіть про свій досвід та підхід до тренувань..."
-              className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-400 resize-none"
+              className="w-full resize-none rounded-md border border-gray-300 bg-white/70 px-3 py-2 text-sm text-gray-900 shadow-sm backdrop-blur-sm placeholder:text-gray-400 transition-colors focus:border-gray-300 focus:outline-none focus:ring-2 focus:ring-gray-400/60"
             />
             <p className="text-xs text-gray-400 mt-1 text-right">{bio.length}/1000</p>
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Спеціалізації</label>
-            <input
+            <Input
+              label="Спеціалізації"
               value={specializations}
               onChange={e => setSpecializations(e.target.value)}
               placeholder="фітнес, реабілітація, схуднення (через кому)"
-              className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-400"
             />
             <p className="text-xs text-gray-400 mt-1">Вводьте через кому</p>
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
+            <label className="mb-1.5 block text-sm font-medium text-gray-700">
               Дедлайн скасування заняття клієнтом
             </label>
             <div className="flex items-center gap-2">
@@ -223,7 +201,7 @@ export default function ProfilePage() {
                 max={168}
                 value={deadlineHours}
                 onChange={e => setDeadlineHours(Number(e.target.value))}
-                className="w-24 border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-400"
+                className="w-24 rounded-md border border-gray-300 bg-white/70 px-3 py-2 text-sm text-gray-900 shadow-sm backdrop-blur-sm transition-colors focus:border-gray-300 focus:outline-none focus:ring-2 focus:ring-gray-400/60"
               />
               <span className="text-sm text-gray-500">годин до заняття</span>
             </div>
@@ -234,13 +212,9 @@ export default function ProfilePage() {
 
           {error && <p className="text-xs text-red-500">{error}</p>}
 
-          <button
-            type="submit"
-            disabled={saving}
-            className="w-full bg-gray-900 text-white rounded-md py-2.5 text-sm font-medium hover:bg-gray-700 transition-colors disabled:opacity-50"
-          >
+          <Button type="submit" loading={saving} fullWidth size="lg">
             {saving ? 'Збереження...' : saved ? 'Збережено' : 'Зберегти профіль'}
-          </button>
+          </Button>
         </form>
       </GlassCard>
     </div>

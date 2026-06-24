@@ -1,7 +1,7 @@
 'use client'
 import { signIn } from 'next-auth/react'
 import { useState } from 'react'
-import { GlassCard, Spinner } from '@atleti/ui'
+import { GlassCard, Button, Input } from '@atleti/ui'
 import { Logo } from '@/components/Logo'
 
 export default function LoginPage() {
@@ -33,22 +33,18 @@ export default function LoginPage() {
       {/* Google-вхід тимчасово вимкнено */}
 
       <form onSubmit={handleCredentials} className="space-y-3">
-        <input
+        <Input
           type="email" value={email} onChange={(e) => setEmail(e.target.value)}
           placeholder="Email" required
-          className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-400"
         />
-        <input
+        <Input
           type="password" value={password} onChange={(e) => setPassword(e.target.value)}
           placeholder="Пароль" required
-          className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-400"
         />
         {error && <p className="text-red-500 text-xs">{error}</p>}
-        <button type="submit" disabled={loading}
-          className="w-full flex items-center justify-center gap-2 bg-gray-900 text-white rounded-md py-2.5 text-sm font-medium hover:bg-gray-700 disabled:opacity-70 disabled:cursor-not-allowed transition-colors">
-          {loading && <Spinner size={16} className="border-white/40 border-t-white" />}
+        <Button type="submit" loading={loading} fullWidth size="lg">
           {loading ? 'Вхід...' : 'Увійти'}
-        </button>
+        </Button>
       </form>
 
       <p className="text-center text-xs text-gray-500 mt-3">
