@@ -75,6 +75,13 @@ function getMonthGrid(year: number, month: number): (Date | null)[] {
   return grid
 }
 
+function blockSummary(b: ICoachBlock): string {
+  const rec = b.recurring ? (b.recurring.type === 'daily' ? ' · щодня' : ' · щотижня') : ''
+  if (b.type === 'vacation') return `Відпустка · ${b.dateFrom}–${b.dateTo}`
+  if (b.type === 'day') return `День${b.date ? ` · ${b.date}` : ''}${rec}`
+  return `${b.startTime}–${b.endTime}${b.date ? ` · ${b.date}` : ''}${rec}`
+}
+
 function dateStr(d: Date): string {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
 }
@@ -126,6 +133,7 @@ export default function CalendarClient({ clients }: { clients: Client[] }) {
     recurringDayOfWeek: 'mon' as DowKey,
     recurringUntil: '',
   })
+  const [editingBlockId, setEditingBlockId] = useState<string | null>(null)
 
   const loadSettings = useCallback(async () => {
     try {
@@ -233,13 +241,16 @@ export default function CalendarClient({ clients }: { clients: Client[] }) {
       }
     }
     try {
-      const res = await fetch('/api/coach/blocks', {
-        method: 'POST',
+      const url = editingBlockId ? `/api/coach/blocks/${editingBlockId}` : '/api/coach/blocks'
+      const res = await fetch(url, {
+        method: editingBlockId ? 'PATCH' : 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body),
       })
       const data = await res.json()
       if (!res.ok) { setError(typeof data.error === 'string' ? data.error : 'Помилка'); return }
+      setEditingBlockId(null)
+      resetBlockForm()
       setBlockOpen(false)
       await loadSessions()
     } catch {
@@ -249,10 +260,44 @@ export default function CalendarClient({ clients }: { clients: Client[] }) {
     }
   }
 
+  function resetBlockForm() {
+    setBlockForm({
+      type: 'time', date: '', startTime: '', endTime: '', dateFrom: '', dateTo: '', label: '',
+      recurringEnabled: false, recurringType: 'daily', recurringDayOfWeek: 'mon', recurringUntil: '',
+    })
+  }
+
+  function openAddBlock() {
+    setError('')
+    setEditingBlockId(null)
+    resetBlockForm()
+    setBlockOpen(true)
+  }
+
+  function openEditBlock(b: ICoachBlock) {
+    setError('')
+    setEditingBlockId(b._id)
+    setBlockForm({
+      type: b.type,
+      date: b.date ?? '',
+      startTime: b.startTime ?? '',
+      endTime: b.endTime ?? '',
+      dateFrom: b.dateFrom ?? '',
+      dateTo: b.dateTo ?? '',
+      label: b.label ?? '',
+      recurringEnabled: !!b.recurring,
+      recurringType: b.recurring?.type ?? 'daily',
+      recurringDayOfWeek: (b.recurring?.dayOfWeek as DowKey) ?? 'mon',
+      recurringUntil: b.recurring?.until ?? '',
+    })
+    setBlockOpen(true)
+  }
+
   async function handleDeleteBlock(blockId: string) {
     try {
       const res = await fetch(`/api/coach/blocks/${blockId}`, { method: 'DELETE' })
       if (res.ok) {
+        if (editingBlockId === blockId) { setEditingBlockId(null); resetBlockForm() }
         await loadSessions()
       } else {
         setError('Помилка видалення блоку')
@@ -397,7 +442,7 @@ export default function CalendarClient({ clients }: { clients: Client[] }) {
           ⚙️ Робочий графік
         </button>
         <button
-          onClick={() => { setError(''); setBlockOpen(true) }}
+          onClick={openAddBlock}
           className="bg-white border border-gray-200 text-gray-700 rounded-md px-3 py-2 text-sm font-medium hover:bg-gray-50 transition-colors"
         >
           🚫 Заблокувати
@@ -585,7 +630,32 @@ export default function CalendarClient({ clients }: { clients: Client[] }) {
       </GlassModal>
 
       {/* Add block modal */}
-      <GlassModal open={blockOpen} onClose={() => setBlockOpen(false)} title="Заблокувати час">
+      <GlassModal
+        open={blockOpen}
+        onClose={() => { setBlockOpen(false); setEditingBlockId(null); resetBlockForm(); setError('') }}
+        title={editingBlockId ? 'Редагувати блок' : 'Заблокувати час'}
+      >
+        {/* Список наявних блоків — перегляд / редагування / видалення */}
+        {blocks.length > 0 && (
+          <div className="mb-3 space-y-1">
+            <p className="text-xs font-medium text-gray-500">Заблоковані час/дні</p>
+            {blocks.map(b => (
+              <div
+                key={b._id}
+                className={`flex items-center justify-between gap-2 rounded-md border px-2 py-1.5 text-xs ${
+                  editingBlockId === b._id ? 'border-gray-900 bg-gray-50' : 'border-gray-200'
+                }`}
+              >
+                <span className="truncate text-gray-700">🚫 {blockSummary(b)}{b.label ? ` — ${b.label}` : ''}</span>
+                <div className="flex shrink-0 gap-2">
+                  <button type="button" onClick={() => openEditBlock(b)} className="text-gray-400 hover:text-gray-700 underline">ред.</button>
+                  <button type="button" onClick={() => handleDeleteBlock(b._id)} className="text-gray-400 hover:text-red-500" title="Видалити">✕</button>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+
         <form onSubmit={handleAddBlock} className="space-y-3">
           {/* Type selector */}
           <div className="flex gap-2">
@@ -691,7 +761,7 @@ export default function CalendarClient({ clients }: { clients: Client[] }) {
           {error && <p className="text-xs text-red-500">{error}</p>}
           <button type="submit" disabled={saving}
             className="w-full bg-gray-900 text-white rounded-md py-2.5 text-sm font-medium hover:bg-gray-700 disabled:opacity-50">
-            {saving ? 'Збереження...' : 'Заблокувати'}
+            {saving ? 'Збереження...' : editingBlockId ? 'Зберегти зміни' : 'Заблокувати'}
           </button>
         </form>
       </GlassModal>
