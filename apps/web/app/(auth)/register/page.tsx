@@ -35,6 +35,11 @@ export default function RegisterPage() {
         <Input placeholder="Пароль (мін. 8 символів)" type="password" required minLength={8} value={form.password} onChange={(e) => set('password', e.target.value)} />
         <Input placeholder="Нікнейм (латиниця, без пробілів)" required value={form.nickname}
           onChange={(e) => set('nickname', e.target.value.toLowerCase().replace(/\s/g, ''))} />
+        {form.role === 'client' && (
+          <p className="text-xs text-gray-500 -mt-1.5 px-0.5">
+            Саме за нікнеймом тренер знайде вас, щоб надіслати запрошення. Оберіть такий, який зможете повідомити своєму тренеру.
+          </p>
+        )}
         <Select
           value={form.role}
           onChange={(v) => set('role', v)}
