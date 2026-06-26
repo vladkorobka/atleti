@@ -7,6 +7,8 @@ import { GlassCard, Avatar, Badge } from '@atleti/ui'
 import InviteButton from './InviteButton'
 import Link from 'next/link'
 
+export const metadata = { title: 'Клієнти' }
+
 export default async function ClientsPage() {
   const session = await auth()
   const user = session?.user as unknown as AtletiSession

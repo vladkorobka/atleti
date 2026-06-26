@@ -2,7 +2,7 @@ export function resolveRedirect(
   pathname: string,
   session: { role?: string; nickname?: string } | null
 ): string | null {
-  const publicPaths = ['/login', '/register', '/role-select', '/forgot-password', '/reset-password', '/api/auth']
+  const publicPaths = ['/login', '/register', '/role-select', '/forgot-password', '/reset-password', '/verify-email', '/api/auth']
   if (publicPaths.some((p) => pathname.startsWith(p))) return null
   if (!session) return '/login'
   if (!session.nickname) return '/role-select'

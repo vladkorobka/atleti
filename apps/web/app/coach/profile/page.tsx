@@ -20,7 +20,7 @@ export default function ProfilePage() {
   // Coach profile fields
   const [bio, setBio] = useState('')
   const [specializations, setSpecializations] = useState('')
-  const [deadlineHours, setDeadlineHours] = useState(24)
+  const [deadlineHours, setDeadlineHours] = useState('24')
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
@@ -39,7 +39,7 @@ export default function ProfilePage() {
       if (coachData.profile) {
         setBio(coachData.profile.bio ?? '')
         setSpecializations((coachData.profile.specializations ?? []).join(', '))
-        setDeadlineHours(coachData.profile.cancellationDeadlineHours ?? 24)
+        setDeadlineHours(String(coachData.profile.cancellationDeadlineHours ?? 24))
       }
       setLoading(false)
     })
@@ -87,7 +87,7 @@ export default function ProfilePage() {
       body: JSON.stringify({
         bio: bio.trim(),
         specializations: specializations.split(',').map(s => s.trim()).filter(Boolean),
-        cancellationDeadlineHours: deadlineHours,
+        cancellationDeadlineHours: Math.min(168, Math.max(0, Number(deadlineHours) || 0)),
       }),
     })
     const data = await res.json()
@@ -126,11 +126,11 @@ export default function ProfilePage() {
           <Input
             label="Нікнейм"
             value={nickname}
-            onChange={e => setNickname(e.target.value.toLowerCase())}
+            onChange={e => setNickname(e.target.value.toLowerCase().replace(/[^a-z0-9._]/g, ''))}
             required
             minLength={3}
             maxLength={30}
-            pattern="[a-z0-9_]+"
+            pattern="[a-z0-9._]+"
             leftIcon={<span className="text-sm">@</span>}
           />
 
@@ -196,17 +196,16 @@ export default function ProfilePage() {
             </label>
             <div className="flex items-center gap-2">
               <input
-                type="number"
-                min={0}
-                max={168}
+                type="text"
+                inputMode="numeric"
                 value={deadlineHours}
-                onChange={e => setDeadlineHours(Number(e.target.value))}
+                onChange={e => setDeadlineHours(e.target.value.replace(/\D/g, '').replace(/^0+(?=\d)/, ''))}
                 className="w-24 rounded-md border border-gray-300 bg-white/70 px-3 py-2 text-sm text-gray-900 shadow-sm backdrop-blur-sm transition-colors focus:border-gray-300 focus:outline-none focus:ring-2 focus:ring-gray-400/60"
               />
               <span className="text-sm text-gray-500">годин до заняття</span>
             </div>
             <p className="text-xs text-gray-400 mt-1">
-              Клієнт не зможе скасувати заняття менш ніж за {deadlineHours} год
+              Клієнт не зможе скасувати заняття менш ніж за {deadlineHours || 0} год
             </p>
           </div>
 

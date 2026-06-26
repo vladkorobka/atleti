@@ -2,9 +2,11 @@
 // Якщо RESEND_API_KEY не заданий — лог у консоль (dev).
 // Env: RESEND_API_KEY, RESEND_FROM
 
+import { renderVerificationEmail, renderPasswordResetEmail } from './email-templates'
+
 export async function sendMail(to: string, subject: string, html: string): Promise<void> {
   const apiKey = process.env.RESEND_API_KEY
-  const from = process.env.RESEND_FROM ?? 'Атлеті <onboarding@resend.dev>'
+  const from = process.env.RESEND_FROM ?? 'Atleti <onboarding@resend.dev>'
 
   if (!apiKey) {
     // Resend не налаштований — не падаємо, лише логуємо (dev-режим)
@@ -28,10 +30,11 @@ export async function sendMail(to: string, subject: string, html: string): Promi
 }
 
 export async function sendPasswordResetEmail(to: string, resetUrl: string): Promise<void> {
-  const html = `
-    <p>Ви запросили скидання паролю для Атлеті.</p>
-    <p><a href="${resetUrl}">Натисніть тут, щоб встановити новий пароль</a></p>
-    <p>Якщо це були не ви — проігноруйте цей лист. Посилання дійсне 1 годину.</p>
-  `
-  await sendMail(to, 'Скидання паролю — Атлеті', html)
+  const html = renderPasswordResetEmail(resetUrl)
+  await sendMail(to, 'Скидання паролю — Atleti', html)
+}
+
+export async function sendVerificationEmail(to: string, verifyUrl: string): Promise<void> {
+  const html = renderVerificationEmail(verifyUrl)
+  await sendMail(to, 'Підтвердження email — Atleti', html)
 }

@@ -11,6 +11,8 @@ import Link from 'next/link'
 import { settlePastSessions } from '@/lib/settle-sessions'
 import { formatKyiv } from '@/lib/tz'
 
+export const metadata = { title: 'Клієнт' }
+
 export default async function ClientDetailPage({ params }: { params: { clientId: string } }) {
   const session = await auth()
   const user = session?.user as unknown as AtletiSession

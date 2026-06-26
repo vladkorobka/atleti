@@ -6,6 +6,8 @@ import type { AtletiSession } from '@atleti/types'
 import { GlassCard } from '@atleti/ui'
 import { LeaveCoachButton } from './LeaveCoachButton'
 
+export const metadata = { title: 'Тренер' }
+
 export default async function CoachPage() {
   const session = await auth()
   const user = session?.user as unknown as AtletiSession

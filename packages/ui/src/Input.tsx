@@ -39,7 +39,7 @@ export const Input = React.forwardRef<HTMLInputElement, InputProps>(function Inp
       )}
       {leftIcon ? (
         <div className="relative">
-          <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-gray-400">
+          <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 font-medium text-gray-600">
             {leftIcon}
           </span>
           {inputEl}

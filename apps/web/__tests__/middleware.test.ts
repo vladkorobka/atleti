@@ -15,6 +15,10 @@ describe('middleware redirect logic', () => {
     expect(resolveRedirect('/reset-password', null)).toBeNull()
   })
 
+  it('allows unauthenticated access to email verification page', () => {
+    expect(resolveRedirect('/verify-email', null)).toBeNull()
+  })
+
   it('redirects user without nickname to role-select', () => {
     expect(resolveRedirect('/dashboard', { role: 'coach', nickname: '' })).toBe('/role-select')
   })

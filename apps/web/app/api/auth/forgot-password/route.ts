@@ -27,7 +27,8 @@ export async function POST(req: NextRequest) {
     user.set('resetTokenExpiresAt', new Date(Date.now() + RESET_TTL_MS))
     await user.save()
 
-    const base = process.env.NEXTAUTH_URL ?? 'http://localhost:3000'
+    // Базовий URL — з origin запиту (працює локально й на проді), фолбек на NEXTAUTH_URL
+    const base = req.nextUrl?.origin || process.env.NEXTAUTH_URL || 'http://localhost:3000'
     const resetUrl = `${base}/reset-password?token=${token}`
     try {
       await sendPasswordResetEmail(user.email, resetUrl)

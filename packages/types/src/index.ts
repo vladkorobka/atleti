@@ -110,6 +110,16 @@ export interface IContent {
 }
 
 // NextAuth session extension
+export interface IPendingUser {
+  email: string
+  name: string
+  role: UserRole
+  nickname: string
+  passwordHash: string
+  tokenHash: string
+  expiresAt: string
+}
+
 export interface AtletiSession {
   userId: string
   role: UserRole
@@ -117,6 +127,7 @@ export interface AtletiSession {
   name: string
   email: string
   avatar?: string
+  emailVerified?: boolean
 }
 
 export type DowKey = 'sun' | 'mon' | 'tue' | 'wed' | 'thu' | 'fri' | 'sat'

@@ -3,7 +3,10 @@ import './globals.css'
 import { Providers } from '@/components/Providers'
 
 export const metadata: Metadata = {
-  title: 'Атлеті',
+  title: {
+    default: 'Atleti',
+    template: 'Atleti | %s',
+  },
   description: 'Платформа для тренерів і клієнтів',
 }
 

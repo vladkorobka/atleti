@@ -5,6 +5,8 @@ import { ClientCoach, Balance, Session } from '@atleti/db'
 import type { AtletiSession } from '@atleti/types'
 import CalendarClient from './CalendarClient'
 
+export const metadata = { title: 'Календар' }
+
 export default async function CalendarPage() {
   const session = await auth()
   const user = session?.user as unknown as AtletiSession

@@ -42,6 +42,8 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
           await User.create({
             email: user.email, name: user.name, avatar: user.image,
             googleId: account.providerAccountId, role: 'client', nickname: '',
+            // Google вже підтвердив email — не вимагаємо повторного підтвердження
+            emailVerified: true,
           })
         } else if (!(existing as any).googleId) {
           await User.updateOne({ _id: existing._id }, { googleId: account.providerAccountId })
@@ -60,6 +62,7 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
           token.nickname = (dbUser as any).nickname
           token.name = dbUser.name
           token.email = dbUser.email
+          token.emailVerified = (dbUser as any).emailVerified
         }
       }
       return token

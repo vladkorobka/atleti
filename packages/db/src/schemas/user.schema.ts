@@ -5,6 +5,7 @@ type UserDocument = IUser & {
   passwordHash?: string
   resetTokenHash?: string
   resetTokenExpiresAt?: Date
+  emailVerified?: boolean
 }
 
 export const UserSchema = new Schema<UserDocument>(
@@ -19,6 +20,9 @@ export const UserSchema = new Schema<UserDocument>(
     // Скидання паролю: зберігаємо лише sha256-хеш токена + термін дії
     resetTokenHash: { type: String },
     resetTokenExpiresAt: { type: Date },
+    // Підтвердження email (для акаунтів через Google — одразу true; для email-реєстрації
+    // акаунт створюється вже підтвердженим). Сам процес підтвердження — у PendingUser.
+    emailVerified: { type: Boolean },
   },
   { timestamps: true }
 )

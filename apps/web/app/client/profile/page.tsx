@@ -89,11 +89,11 @@ export default function ProfilePage() {
           <Input
             label="Нікнейм"
             value={nickname}
-            onChange={e => setNickname(e.target.value.toLowerCase())}
+            onChange={e => setNickname(e.target.value.toLowerCase().replace(/[^a-z0-9._]/g, ''))}
             required
             minLength={3}
             maxLength={30}
-            pattern="[a-z0-9_]+"
+            pattern="[a-z0-9._]+"
             leftIcon={<span className="text-sm">@</span>}
           />
 

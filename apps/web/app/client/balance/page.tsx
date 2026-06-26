@@ -15,6 +15,8 @@ function formatDate(date: Date): string {
   })
 }
 
+export const metadata = { title: 'Баланс' }
+
 export default async function BalancePage() {
   const session = await auth()
   const user = session?.user as unknown as AtletiSession

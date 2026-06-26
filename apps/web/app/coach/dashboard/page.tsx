@@ -24,6 +24,8 @@ function formatDate(date: Date): string {
   })
 }
 
+export const metadata = { title: 'Головна' }
+
 export default async function CoachDashboard() {
   const session = await auth()
   const user = session?.user as unknown as AtletiSession
