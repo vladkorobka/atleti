@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeAll, afterAll, beforeEach, vi } from 'vitest'
 import mongoose from 'mongoose'
 import { MongoMemoryServer } from 'mongodb-memory-server'
-import { kyivInputToUtc } from '@/lib/tz'
+import { kyivInputToUtc, kyivDateInput } from '@/lib/tz'
 
 let mongod: MongoMemoryServer
 let coachId: string
@@ -12,8 +12,10 @@ let clientId: string
 const DAY = '2030-06-17'
 const at = (t: string) => kyivInputToUtc(DAY, t).toISOString()
 
-// Фіксований минулий день — для ретроактивного запису проведених занять.
-const PAST_DAY = '2020-06-17'
+// Минулий день для ретроактивного запису. Рахуємо відносно «сьогодні», а не фіксованою
+// датою: запис заднім числом обмежений MAX_BACKDATE_DAYS, тож жорстка дата з часом
+// вийшла б за межу і тести почали б падати.
+const PAST_DAY = kyivDateInput(new Date(Date.now() - 30 * 86_400_000))
 const pastAt = (t: string) => kyivInputToUtc(PAST_DAY, t).toISOString()
 
 vi.mock('@/lib/db', () => ({ ensureDB: vi.fn().mockResolvedValue(undefined) }))
@@ -196,6 +198,19 @@ describe('POST /api/coach/sessions — ретроактивний запис п�
     })
     expect(res.status).toBe(400)
     expect((await res.json()).error).toBe('Майбутнє заняття не можна одразу позначити проведеним')
+  })
+
+  it('глибше за рік у минуле → 400', async () => {
+    const tooOld = new Date(Date.now() - 400 * 86_400_000).toISOString()
+    const res = await postSession({ clientId, scheduledAt: tooOld, duration: 60, type: 'regular', status: 'completed' })
+    expect(res.status).toBe(400)
+    expect((await res.json()).error).toBe('Заняття можна записати заднім числом не більше ніж за рік')
+  })
+
+  it('у межах року в минуле → 201', async () => {
+    const recent = new Date(Date.now() - 300 * 86_400_000).toISOString()
+    const res = await postSession({ clientId, scheduledAt: recent, duration: 60, type: 'regular', status: 'completed' })
+    expect(res.status).toBe(201)
   })
 
   it('момент рівно «зараз» вважається минулим', async () => {

@@ -1,10 +1,11 @@
 'use client'
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import { GlassCard, GlassModal, Badge, DatePicker, TimePicker, CenteredSpinner, Toggle, Select, ConfirmDialog, Button, Input, BanIcon } from '@atleti/ui'
 import { toast } from 'sonner'
 import { generateSlots, isDayBlocked, getSlotBlock } from '@/lib/slot-utils'
 import { kyivInputToUtc, kyivParts, kyivDateInput } from '@/lib/tz'
+import { MAX_BACKDATE_DAYS } from '@/lib/session-conflict'
 import type { ICoachBlock, DowKey, IWorkingHoursDay } from '@atleti/types'
 
 // remaining — залишок для планування наперед (мінус резерв заплановані).
@@ -165,35 +166,49 @@ export default function CalendarClient({ clients }: { clients: Client[] }) {
     }
   }, [])
 
+  // Ревізія запиту: після запису ми переводимо календар на інший місяць, тож у польоті
+  // опиняються два завантаження. Якщо старіше відповість останнім, воно затре свіжі
+  // дані — і щойно записане заняття зникне з екрана. Приймаємо лише останній запит.
+  const loadRevision = useRef(0)
+
   const loadSessions = useCallback(async () => {
+    const revision = ++loadRevision.current
     try {
       const monthStr = `${year}-${String(month + 1).padStart(2, '0')}`
       const [sessRes, blkRes] = await Promise.all([
         fetch(`/api/coach/sessions?month=${monthStr}`),
         fetch(`/api/coach/blocks?month=${monthStr}`),
       ])
+      if (revision !== loadRevision.current) return
       if (!sessRes.ok) { setError('Помилка завантаження занять'); return }
       const sessData = await sessRes.json()
+      if (revision !== loadRevision.current) return
       setSessions(sessData.sessions ?? [])
       if (blkRes.ok) {
         const blkData = await blkRes.json()
+        if (revision !== loadRevision.current) return
         setBlocks(blkData.blocks ?? [])
       }
     } catch {
-      setError('Помилка завантаження даних')
+      if (revision === loadRevision.current) setError('Помилка завантаження даних')
     } finally {
-      setLoading(false)
+      if (revision === loadRevision.current) setLoading(false)
     }
   }, [year, month])
 
   useEffect(() => { loadSettings() }, [loadSettings])
   useEffect(() => { loadSessions() }, [loadSessions])
 
+  // Тікає завжди, а не лише при відкритій модалці: «минулість» читають також кнопка
+  // «Повернути в заплановані» і підпис вільного слоту, а календар легко лишають
+  // відкритим на годину або через північ.
   useEffect(() => {
-    if (!addOpen) return
-    setNowMs(Date.now())
     const id = setInterval(() => setNowMs(Date.now()), 30_000)
     return () => clearInterval(id)
+  }, [])
+
+  useEffect(() => {
+    if (addOpen) setNowMs(Date.now())
   }, [addOpen])
 
   function prevMonth() {
@@ -345,8 +360,9 @@ export default function CalendarClient({ clients }: { clients: Client[] }) {
     setForm({ clientId: clients[0]?.id ?? '', date: '', time: '', duration: '60', type: 'regular' })
   }
 
-  async function submitSession() {
-    const past = isPastSlot(form.date, form.time)
+  // `past` приходить від виклику: рендер і обробник інакше міряли б час різними
+  // годинниками, і форма показувала б «Додати заняття», поки летить запис проведеного.
+  async function submitSession(past: boolean) {
     const savedDate = form.date
     setSaving(true)
     setError('')
@@ -363,7 +379,9 @@ export default function CalendarClient({ clients }: { clients: Client[] }) {
           status: past ? 'completed' : 'scheduled',
         }),
       })
-      const data = await res.json()
+      // 500 від Next.js приходить текстом, не JSON — без catch тут летів би виняток
+      // і тренер бачив би «Помилка створення заняття» замість справжньої причини.
+      const data = await res.json().catch(() => ({}))
       if (!res.ok) {
         const msg = typeof data.error === 'string' ? data.error : 'Помилка'
         // Діалог підтвердження закриваємо і при помилці: текст помилки рендериться
@@ -398,15 +416,16 @@ export default function CalendarClient({ clients }: { clients: Client[] }) {
 
   function handleAddSession(e: React.FormEvent) {
     e.preventDefault()
+    const past = isPastSlot(form.date, form.time)
     // Ретроактивне списання зменшує лише sessionsUsed, тож у мінус баланс іде за
     // оплаченим залишком без резерву — `remaining` тут дав би хибну тривогу.
     const goesNegative = (clients.find(c => c.id === form.clientId)?.paidLeft ?? 0) <= 0
-    if (isPastSlot(form.date, form.time) && goesNegative) {
+    if (past && goesNegative) {
       setError('')
       setConfirmPastDebt(true)
       return
     }
-    submitSession()
+    submitSession(past)
   }
 
   // Клік на вільний слот у розкладі дня — відкриваємо "Нове заняття" з підставленими датою/часом
@@ -481,8 +500,16 @@ export default function CalendarClient({ clients }: { clients: Client[] }) {
       } else {
         const data = await res.json().catch(() => ({}))
         const msg = typeof data.error === 'string' ? data.error : 'Помилка зміни статусу'
-        setError(msg)
         toast.error(msg)
+        if (res.status === 409) {
+          // Статус змінився паралельно (напр. settlePastSessions закрив заняття).
+          // Показувати ту саму кнопку зі старим статусом безглуздо — перезавантажуємо.
+          setStatusModal(null)
+          await loadSessions()
+          router.refresh()
+        } else {
+          setError(msg)
+        }
       }
     } catch {
       setError('Помилка зміни статусу')
@@ -586,10 +613,18 @@ export default function CalendarClient({ clients }: { clients: Client[] }) {
   const isPastForm = isPastSlot(form.date, form.time, nowMs)
   // Оплачений залишок без резерву — чи піде баланс у мінус від ретроактивного списання.
   const selectedClientGoesNegative = (clients.find(c => c.id === form.clientId)?.paidLeft ?? 0) <= 0
-  // Робочі години обмежують вибір часу лише при плануванні наперед. Сьогоднішню дату
-  // не обмежуємо: заняття могло відбутись сьогодні поза графіком, а режим минулого
-  // вмикається лише після вибору часу — інакше вийшла б безвихідь «курка-яйце».
-  const restrictHoursForForm = !!form.date && form.date > kyivDateInput(new Date(nowMs))
+  // Обмеження часу для обраної дати. Минулий день — без обмежень (заняття могло бути
+  // позаплановим або графік відтоді змінився). Сьогодні — знімаємо лише нижню межу:
+  // ранкові години могли вже відбутись, а от вечір поза графіком планувати нема сенсу,
+  // сервер такий запис усе одно відхилить.
+  const formHourLimits = (() => {
+    if (!form.date) return {}
+    const today = kyivDateInput(new Date(nowMs))
+    if (form.date < today) return {}
+    const h = hoursForDate(form.date)
+    if (form.date > today) return h
+    return h.maxTime ? { maxTime: h.maxTime } : {}
+  })()
   const selectedDayIsPast = selectedDay ? dateStr(selectedDay) < kyivDateInput(new Date(nowMs)) : false
 
   return (
@@ -969,11 +1004,15 @@ export default function CalendarClient({ clients }: { clients: Client[] }) {
             }))}
             placeholder="Оберіть клієнта"
           />
-          <DatePicker value={form.date} onChange={v => setForm(f => ({ ...f, date: v }))} />
+          <DatePicker
+            value={form.date}
+            onChange={v => setForm(f => ({ ...f, date: v }))}
+            min={kyivDateInput(new Date(nowMs - MAX_BACKDATE_DAYS * 86_400_000))}
+          />
           <TimePicker
             value={form.time}
             onChange={v => setForm(f => ({ ...f, time: v }))}
-            {...(restrictHoursForForm ? hoursForDate(form.date) : {})}
+            {...formHourLimits}
           />
           <div className="grid grid-cols-2 gap-2">
             <Input type="number" min="15" max="480" value={form.duration}
@@ -1067,7 +1106,7 @@ export default function CalendarClient({ clients }: { clients: Client[] }) {
         confirmLabel="Записати проведене"
         cancelLabel="Назад"
         loading={saving}
-        onConfirm={submitSession}
+        onConfirm={() => submitSession(true)}
         onClose={() => setConfirmPastDebt(false)}
       />
 

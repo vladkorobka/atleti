@@ -5,7 +5,7 @@ import { Session, ClientCoach, CoachProfile, CoachBlock, Balance } from '@atleti
 import type { AtletiSession, ICoachBlock } from '@atleti/types'
 import { sessionCreateSchema } from '@/lib/validations/coach'
 import { settlePastSessions } from '@/lib/settle-sessions'
-import { hasBlockingConflict, MAX_SESSION_DURATION_MIN } from '@/lib/session-conflict'
+import { hasBlockingConflict, MAX_SESSION_DURATION_MIN, MAX_BACKDATE_DAYS } from '@/lib/session-conflict'
 import { checkWithinSchedule, slotParts } from '@/lib/coach-schedule'
 
 export async function GET(req: NextRequest) {
@@ -69,6 +69,12 @@ export async function POST(req: NextRequest) {
   if (!isPast && status === 'completed') {
     return NextResponse.json(
       { error: 'Майбутнє заняття не можна одразу позначити проведеним' },
+      { status: 400 }
+    )
+  }
+  if (isPast && start.getTime() < Date.now() - MAX_BACKDATE_DAYS * 86_400_000) {
+    return NextResponse.json(
+      { error: 'Заняття можна записати заднім числом не більше ніж за рік' },
       { status: 400 }
     )
   }
