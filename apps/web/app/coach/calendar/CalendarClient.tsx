@@ -193,6 +193,8 @@ export default function CalendarClient({ clients }: { clients: Client[] }) {
       if (revision !== loadRevision.current) return
       setSessions(sessData.sessions ?? [])
       setBlocks(blkData.blocks ?? [])
+      // Мовчазний збій блоків небезпечний: заблокований слот показався б як вільний.
+      if (!blkRes.ok) setError('Не вдалося завантажити заблокований час')
     } catch {
       if (revision === loadRevision.current) setError('Помилка завантаження даних')
     } finally {
