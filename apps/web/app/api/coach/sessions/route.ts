@@ -136,24 +136,51 @@ export async function POST(req: NextRequest) {
     )
   }
 
-  const newSession = await Session.create({
-    clientId,
-    coachId: coachSession.userId,
-    scheduledAt: start,
-    duration,
-    type,
-    status: isPast ? 'completed' : 'scheduled',
-    createdBy: 'coach',
-  })
+  let newSession
+  try {
+    newSession = await Session.create({
+      clientId,
+      coachId: coachSession.userId,
+      scheduledAt: start,
+      duration,
+      type,
+      status: isPast ? 'completed' : 'scheduled',
+      createdBy: 'coach',
+    })
+  } catch (err) {
+    // Унікальний індекс uniq_coach_client_slot: паралельний запит випередив нас.
+    // Для користувача це той самий випадок, що й послідовний дубль.
+    if ((err as { code?: number }).code === 11000) {
+      return NextResponse.json(
+        { error: 'Це заняття вже записане для цього клієнта на цей час' },
+        { status: 409 }
+      )
+    }
+    throw err
+  }
 
   // Проведене заняття списується з балансу одразу — на відміну від запланованого,
   // яке спише settlePastSessions після настання часу. upsert: у клієнта без жодного
   // поповнення документа балансу ще немає, а борг зафіксувати треба.
   if (isPast) {
     try {
+      // Запис у журнал: це єдине списання, яке тренер робить вручну заднім числом,
+      // і клієнт не бачив цього заняття у своєму розкладі. Без рядка в історії
+      // від'ємний баланс неможливо звірити. Дата заняття йде в note.
+      const { date: sessionDate } = slotParts(start)
       await Balance.updateOne(
         { clientId, coachId: coachSession.userId },
-        { $inc: { sessionsUsed: 1 } },
+        {
+          $inc: { sessionsUsed: 1 },
+          $push: {
+            transactions: {
+              type: 'debit',
+              sessions: 1,
+              note: `Проведене заняття ${sessionDate}, записане заднім числом`,
+              recordedBy: coachSession.userId,
+            },
+          },
+        },
         { upsert: true }
       )
     } catch (err) {

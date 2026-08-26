@@ -6,6 +6,9 @@ import { kyivInputToUtc, kyivDateInput } from '@/lib/tz'
 let mongod: MongoMemoryServer
 let coachId: string
 let clientId: string
+// Другий клієнт потрібен для Спліт-тестів: індекс uniq_coach_client_slot забороняє
+// два заняття одного клієнта в один момент, а спліт — це саме різні клієнти.
+let client2Id: string
 
 // Фіксований майбутній робочий день. at() будує момент так, щоб КИЇВСЬКИЙ настінний час
 // дорівнював t (графік і блоки задані в київському настінному часі).
@@ -31,9 +34,12 @@ beforeAll(async () => {
   await Session.ensureIndexes()
   const coach = await User.create({ email: 'coach@test.com', name: 'Coach', role: 'coach', nickname: 'coach1' })
   const client = await User.create({ email: 'client@test.com', name: 'Client', role: 'client', nickname: 'client1' })
+  const client2 = await User.create({ email: 'client2@test.com', name: 'Client Two', role: 'client', nickname: 'client2' })
   coachId = coach._id.toString()
   clientId = client._id.toString()
+  client2Id = client2._id.toString()
   await ClientCoach.create({ clientId: client._id, coachId: coach._id, status: 'active' })
+  await ClientCoach.create({ clientId: client2._id, coachId: coach._id, status: 'active' })
   // Графік 09:00–18:00 на всі дні, щоб тести не залежали від дня тижня
   const wh = { start: '09:00', end: '18:00', slotDuration: 60 }
   await CoachProfile.create({
@@ -133,6 +139,7 @@ describe('POST /api/coach/sessions — конфлікти', () => {
   beforeEach(async () => {
     const { Balance } = await import('@atleti/db')
     await Balance.create({ clientId, coachId, sessionsTotal: 100, sessionsUsed: 0, transactions: [] })
+    await Balance.create({ clientId: client2Id, coachId, sessionsTotal: 100, sessionsUsed: 0, transactions: [] })
   })
 
   it('regular поверх regular на той самий час → 409', async () => {
@@ -140,9 +147,14 @@ describe('POST /api/coach/sessions — конфлікти', () => {
     expect((await postSession({ clientId, scheduledAt: at('10:00'), duration: 60, type: 'regular' })).status).toBe(409)
   })
 
-  it('split поверх split → 201', async () => {
+  it('split поверх split (різні клієнти) → 201', async () => {
     expect((await postSession({ clientId, scheduledAt: at('10:00'), duration: 60, type: 'split' })).status).toBe(201)
+    expect((await postSession({ clientId: client2Id, scheduledAt: at('10:00'), duration: 60, type: 'split' })).status).toBe(201)
+  })
+
+  it('два заняття ОДНОГО клієнта на той самий час → 409 навіть для split', async () => {
     expect((await postSession({ clientId, scheduledAt: at('10:00'), duration: 60, type: 'split' })).status).toBe(201)
+    expect((await postSession({ clientId, scheduledAt: at('10:00'), duration: 60, type: 'split' })).status).toBe(409)
   })
 
   it('split поверх regular → 409', async () => {
@@ -175,7 +187,28 @@ describe('POST /api/coach/sessions — ретроактивний запис п�
     const data = await res.json()
     expect(data.session.status).toBe('completed')
     expect(data.session.createdBy).toBe('coach')
-    expect((await Balance.findOne({ clientId, coachId }))?.sessionsUsed).toBe(1)
+    const bal = await Balance.findOne({ clientId, coachId })
+    expect(bal?.sessionsUsed).toBe(1)
+    // Ручне списання заднім числом має лишати слід в історії — інакше клієнт
+    // побачив би зміну балансу без жодного пояснення.
+    expect(bal?.transactions).toHaveLength(1)
+    expect(bal?.transactions[0].type).toBe('debit')
+    expect(bal?.transactions[0].sessions).toBe(1)
+    expect(bal?.transactions[0].note).toContain(PAST_DAY)
+    expect(bal?.transactions[0].recordedBy?.toString()).toBe(coachId)
+  })
+
+  it('відхилений дубль не лишає запису в історії', async () => {
+    const { Balance } = await import('@atleti/db')
+    await postSession({ clientId, scheduledAt: pastAt('10:00'), duration: 60, type: 'regular', status: 'completed' })
+    await postSession({ clientId, scheduledAt: pastAt('10:00'), duration: 60, type: 'regular', status: 'completed' })
+    expect((await Balance.findOne({ clientId, coachId }))?.transactions).toHaveLength(1)
+  })
+
+  it('заплановане наперед заняття не пише в історію', async () => {
+    const { Balance } = await import('@atleti/db')
+    expect((await postSession({ clientId, scheduledAt: at('10:00'), duration: 60, type: 'regular' })).status).toBe(201)
+    expect((await Balance.findOne({ clientId, coachId }))?.transactions).toHaveLength(0)
   })
 
   it('минуле не можна запланувати: без status → 400 з поясненням', async () => {
@@ -291,15 +324,17 @@ describe('POST /api/coach/sessions — ретроактивний запис п�
     expect((await Balance.findOne({ clientId, coachId }))?.sessionsUsed).toBe(1)
   })
 
-  it('два минулі Спліт-заняття на той самий час → обидва 201, списано двічі', async () => {
+  it('два минулі Спліт-заняття різних клієнтів → обидва 201, списано з кожного', async () => {
     const { Balance } = await import('@atleti/db')
+    await Balance.create({ clientId: client2Id, coachId, sessionsTotal: 100, sessionsUsed: 0, transactions: [] })
     expect((await postSession({
       clientId, scheduledAt: pastAt('10:00'), duration: 60, type: 'split', status: 'completed',
     })).status).toBe(201)
     expect((await postSession({
-      clientId, scheduledAt: pastAt('10:00'), duration: 60, type: 'split', status: 'completed',
+      clientId: client2Id, scheduledAt: pastAt('10:00'), duration: 60, type: 'split', status: 'completed',
     })).status).toBe(201)
-    expect((await Balance.findOne({ clientId, coachId }))?.sessionsUsed).toBe(2)
+    expect((await Balance.findOne({ clientId, coachId }))?.sessionsUsed).toBe(1)
+    expect((await Balance.findOne({ clientId: client2Id, coachId }))?.sessionsUsed).toBe(1)
   })
 
   it('минуле поверх скасованого заняття → 201', async () => {
@@ -317,9 +352,11 @@ describe('POST /api/coach/sessions — ретроактивний запис п�
   it('планування наперед ігнорує проведені заняття у вікні кандидатів', async () => {
     // Вікно кандидатів для майбутнього не включає completed — інакше вже проведені
     // заняття блокували б планування. Перевіряємо, що гілка isPast не протекла.
+    // Проведене заняття беремо в іншого клієнта: вікно конфліктів рахується по
+    // тренеру, а того самого клієнта на той самий час не пустив би унікальний індекс.
     const { Session } = await import('@atleti/db')
     await Session.create({
-      clientId, coachId, scheduledAt: new Date(at('10:00')), duration: 60, type: 'regular',
+      clientId: client2Id, coachId, scheduledAt: new Date(at('10:00')), duration: 60, type: 'regular',
       status: 'completed', createdBy: 'coach',
     })
     const res = await postSession({ clientId, scheduledAt: at('10:00'), duration: 60, type: 'regular' })

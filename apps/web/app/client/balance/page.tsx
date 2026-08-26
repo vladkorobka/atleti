@@ -63,6 +63,8 @@ export default async function BalancePage() {
     status: 'scheduled',
   })
   const sessionsAvailable = Math.max(0, balance.sessionsTotal - balance.sessionsUsed - reserved)
+  // Проведених більше, ніж оплачених — тренер записав заняття при вичерпаному балансі.
+  const sessionsDebt = Math.max(0, balance.sessionsUsed - balance.sessionsTotal)
   const transactions = [...(balance.transactions ?? [])].reverse()
 
   return (
@@ -88,6 +90,12 @@ export default async function BalancePage() {
             <p className="text-[11px] text-gray-500 mt-0.5">Всього</p>
           </div>
         </div>
+        {sessionsDebt > 0 && (
+          <p className="mt-3 rounded-md bg-red-50 px-3 py-2 text-xs text-red-700">
+            Заборговано: {sessionsDebt} {sessionsDebt === 1 ? 'заняття' : 'занять'}. Проведених занять більше,
+            ніж оплачених — поповніть баланс, щоб бронювати далі.
+          </p>
+        )}
       </GlassCard>
 
       <h2 className="text-lg font-medium text-gray-900">Транзакції</h2>

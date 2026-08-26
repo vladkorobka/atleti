@@ -37,19 +37,24 @@ export async function GET() {
     return NextResponse.json({
       balance: {
         sessionsTotal: 0, sessionsUsed: 0, sessionsReserved: reserved,
-        sessionsAvailable: 0, sessionsRemaining: 0, transactions: [],
+        sessionsAvailable: 0, sessionsDebt: 0, sessionsRemaining: 0, transactions: [],
       },
     })
   }
 
   // Доступно для бронювання = всього - проведено - заплановано (резерв).
   const available = Math.max(0, balance.sessionsTotal - balance.sessionsUsed - reserved)
+  // Борг: проведених занять більше, ніж оплачених. Виникає, коли тренер записує
+  // проведене заняття заднім числом при вичерпаному балансі. Без окремого числа
+  // клієнт бачив би 0 і після поповнення — знову 0, без пояснення.
+  const debt = Math.max(0, balance.sessionsUsed - balance.sessionsTotal)
   return NextResponse.json({
     balance: {
       sessionsTotal: balance.sessionsTotal,
       sessionsUsed: balance.sessionsUsed,
       sessionsReserved: reserved,
       sessionsAvailable: available,
+      sessionsDebt: debt,
       // sessionsRemaining лишаємо для зворотної сумісності (всього - проведено)
       sessionsRemaining: balance.sessionsTotal - balance.sessionsUsed,
       transactions: balance.transactions,
