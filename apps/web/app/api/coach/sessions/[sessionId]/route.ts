@@ -49,7 +49,7 @@ export async function PUT(req: NextRequest, { params }: Params) {
   )
   if (!updatedSession) {
     return NextResponse.json(
-      { error: 'Статус заняття щойно змінився. Оновіть сторінку.' },
+      { error: 'Статус заняття щойно змінився' },
       { status: 409 }
     )
   }

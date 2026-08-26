@@ -179,16 +179,20 @@ export default function CalendarClient({ clients }: { clients: Client[] }) {
         fetch(`/api/coach/sessions?month=${monthStr}`),
         fetch(`/api/coach/blocks?month=${monthStr}`),
       ])
-      if (revision !== loadRevision.current) return
-      if (!sessRes.ok) { setError('Помилка завантаження занять'); return }
-      const sessData = await sessRes.json()
+      if (!sessRes.ok) {
+        if (revision === loadRevision.current) setError('Помилка завантаження занять')
+        return
+      }
+      // Обидві відповіді розбираємо до запису в стан і перевіряємо ревізію один раз:
+      // інакше між setSessions і setBlocks лишалося б вікно, у якому заняття вже нового
+      // місяця, а блоки — ще старого.
+      const [sessData, blkData] = await Promise.all([
+        sessRes.json(),
+        blkRes.ok ? blkRes.json() : Promise.resolve({ blocks: [] }),
+      ])
       if (revision !== loadRevision.current) return
       setSessions(sessData.sessions ?? [])
-      if (blkRes.ok) {
-        const blkData = await blkRes.json()
-        if (revision !== loadRevision.current) return
-        setBlocks(blkData.blocks ?? [])
-      }
+      setBlocks(blkData.blocks ?? [])
     } catch {
       if (revision === loadRevision.current) setError('Помилка завантаження даних')
     } finally {
@@ -614,16 +618,19 @@ export default function CalendarClient({ clients }: { clients: Client[] }) {
   // Оплачений залишок без резерву — чи піде баланс у мінус від ретроактивного списання.
   const selectedClientGoesNegative = (clients.find(c => c.id === form.clientId)?.paidLeft ?? 0) <= 0
   // Обмеження часу для обраної дати. Минулий день — без обмежень (заняття могло бути
-  // позаплановим або графік відтоді змінився). Сьогодні — знімаємо лише нижню межу:
-  // ранкові години могли вже відбутись, а от вечір поза графіком планувати нема сенсу,
-  // сервер такий запис усе одно відхилить.
+  // позаплановим або графік відтоді змінився). Майбутній — робочі години, як і раніше.
+  // Сьогодні — межа проходить по максимуму з кінця графіку і поточного часу: усе, що
+  // вже відбулось сьогодні, має бути доступним для запису, навіть якщо це 19:00 при
+  // графіку до 18:00; а планувати наперед поза графіком і далі не даємо.
   const formHourLimits = (() => {
     if (!form.date) return {}
     const today = kyivDateInput(new Date(nowMs))
     if (form.date < today) return {}
     const h = hoursForDate(form.date)
     if (form.date > today) return h
-    return h.maxTime ? { maxTime: h.maxTime } : {}
+    const p = kyivParts(new Date(nowMs))
+    const nowTime = `${String(p.hour).padStart(2, '0')}:${String(p.minute).padStart(2, '0')}`
+    return { maxTime: h.maxTime && h.maxTime > nowTime ? h.maxTime : nowTime }
   })()
   const selectedDayIsPast = selectedDay ? dateStr(selectedDay) < kyivDateInput(new Date(nowMs)) : false
 
@@ -1004,10 +1011,13 @@ export default function CalendarClient({ clients }: { clients: Client[] }) {
             }))}
             placeholder="Оберіть клієнта"
           />
+          {/* min на добу суворіше за серверну межу: сервер рахує з точністю до
+              мілісекунди, а пікер — до доби, тож рівно на 365-й день назад він
+              пропонував би час, який сервер уже відхиляє. */}
           <DatePicker
             value={form.date}
             onChange={v => setForm(f => ({ ...f, date: v }))}
-            min={kyivDateInput(new Date(nowMs - MAX_BACKDATE_DAYS * 86_400_000))}
+            min={kyivDateInput(new Date(nowMs - (MAX_BACKDATE_DAYS - 1) * 86_400_000))}
           />
           <TimePicker
             value={form.time}
