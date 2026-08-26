@@ -93,15 +93,26 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Slot already booked' }, { status: 409 })
   }
 
-  const newSession = await Session.create({
-    clientId: clientSession.userId,
-    coachId,
-    scheduledAt,
-    duration: dayHours.slotDuration,
-    type,
-    status: 'scheduled',
-    createdBy: 'client',
-  })
+  let newSession
+  try {
+    newSession = await Session.create({
+      clientId: clientSession.userId,
+      coachId,
+      scheduledAt,
+      duration: dayHours.slotDuration,
+      type,
+      status: 'scheduled',
+      createdBy: 'client',
+    })
+  } catch (err) {
+    // uniq_coach_client_slot: у клієнта вже є заняття на цей момент. Перевірка вище
+    // дивиться лише на scheduled, а проведене заняття (внесене тренером заднім
+    // числом) слот теж займає.
+    if ((err as { code?: number }).code === 11000) {
+      return NextResponse.json({ error: 'Slot already booked' }, { status: 409 })
+    }
+    throw err
+  }
 
   return NextResponse.json({ session: newSession }, { status: 201 })
 }

@@ -441,6 +441,24 @@ describe('PATCH /api/coach/sessions/[sessionId] — конфлікти', () => {
     expect(res.status).toBe(200)
   })
 
+  it('перенос на час, де в клієнта вже є проведене заняття → 409, не 500', async () => {
+    // Перевірка конфліктів у PATCH дивиться лише на scheduled, тож проведене
+    // заняття ловиться вже унікальним індексом. Помилка має бути осмисленою.
+    const { Session, Balance } = await import('@atleti/db')
+    await Balance.create({ clientId, coachId, sessionsTotal: 100, sessionsUsed: 0, transactions: [] })
+    await Session.create({
+      clientId, coachId, scheduledAt: new Date(at('10:00')), duration: 60, type: 'regular',
+      status: 'completed', createdBy: 'coach',
+    })
+    const s = await Session.create({
+      clientId, coachId, scheduledAt: new Date(at('11:00')), duration: 60, type: 'regular',
+      status: 'scheduled', createdBy: 'coach',
+    })
+    const res = await patch(s._id.toString(), { scheduledAt: at('10:00'), duration: 60, type: 'regular' })
+    expect(res.status).toBe(409)
+    expect((await res.json()).error).toBe('У цього клієнта вже є заняття на цей час')
+  })
+
   it('перенос поза межами графіку (02:00) → 400', async () => {
     const { Session } = await import('@atleti/db')
     const s = await Session.create({ clientId, coachId, scheduledAt: new Date(at('10:00')), duration: 60, type: 'regular', status: 'scheduled', createdBy: 'coach' })

@@ -42,11 +42,24 @@ export async function PUT(req: NextRequest, { params }: Params) {
   // міг змінити settlePastSessions (він виконується на кожному читанні дашбордів).
   // Без цього фільтра ми б скоригували баланс за дельтою, якої вже не було, і
   // списали заняття двічі.
-  const updatedSession = await Session.findOneAndUpdate(
-    { _id: params.sessionId, coachId: coachSession.userId, status: before.status },
-    update,
-    { new: true }
-  )
+  let updatedSession
+  try {
+    updatedSession = await Session.findOneAndUpdate(
+      { _id: params.sessionId, coachId: coachSession.userId, status: before.status },
+      update,
+      { new: true }
+    )
+  } catch (err) {
+    // Вихід зі скасованого повертає заняття в індекс, а слот міг зайняти інший
+    // запис того самого клієнта (напр. проведене, внесене заднім числом).
+    if ((err as { code?: number }).code === 11000) {
+      return NextResponse.json(
+        { error: 'У цього клієнта вже є інше заняття на цей час' },
+        { status: 409 }
+      )
+    }
+    throw err
+  }
   if (!updatedSession) {
     return NextResponse.json(
       { error: 'Статус заняття щойно змінився' },
@@ -119,11 +132,25 @@ export async function PATCH(req: NextRequest, { params }: Params) {
     )
   }
 
-  const updatedSession = await Session.findOneAndUpdate(
-    { _id: params.sessionId, coachId: coachSession.userId, status: 'scheduled' },
-    { scheduledAt: parsed.data.scheduledAt, duration: parsed.data.duration, type: parsed.data.type },
-    { new: true }
-  )
+  let updatedSession
+  try {
+    updatedSession = await Session.findOneAndUpdate(
+      { _id: params.sessionId, coachId: coachSession.userId, status: 'scheduled' },
+      { scheduledAt: parsed.data.scheduledAt, duration: parsed.data.duration, type: parsed.data.type },
+      { new: true }
+    )
+  } catch (err) {
+    // uniq_coach_client_slot: у клієнта вже є заняття на цей час. Перевірка вище
+    // цього не ловить — вона дивиться лише на scheduled, а проведене (записане
+    // заднім числом) теж займає слот.
+    if ((err as { code?: number }).code === 11000) {
+      return NextResponse.json(
+        { error: 'У цього клієнта вже є заняття на цей час' },
+        { status: 409 }
+      )
+    }
+    throw err
+  }
 
   if (!updatedSession) return NextResponse.json({ error: 'Session not found or not editable' }, { status: 404 })
   return NextResponse.json({ session: updatedSession })

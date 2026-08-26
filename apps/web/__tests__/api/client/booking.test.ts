@@ -16,7 +16,10 @@ vi.mock('@/lib/auth', () => ({ auth: vi.fn().mockResolvedValue(null) }))
 beforeAll(async () => {
   mongod = await MongoMemoryServer.create()
   await mongoose.connect(mongod.getUri())
-  const { User, ClientCoach, CoachProfile } = await import('@atleti/db')
+  const { User, ClientCoach, CoachProfile, Session } = await import('@atleti/db')
+  // Без цього unique-індекс uniq_coach_client_slot у пам'ятній базі не створюється,
+  // і тест на 409 при вже проведеному занятті нічого б не перевіряв.
+  await Session.ensureIndexes()
   const coach = await User.create({ email: 'coach@test.com', name: 'Coach', role: 'coach', nickname: 'coach1' })
   const client = await User.create({ email: 'client@test.com', name: 'Client', role: 'client', nickname: 'client1' })
   coachId = coach._id.toString()
@@ -54,6 +57,21 @@ async function book(body: Record<string, unknown>) {
 }
 
 describe('POST /api/client/sessions — booking', () => {
+  it('слот, зайнятий проведеним заняттям цього ж клієнта → 409, не 500', async () => {
+    // Тренер записав заняття заднім числом; клієнт намагається забронювати той самий
+    // момент. Перевірка конфліктів у роуті дивиться лише на scheduled, тож спрацьовує
+    // унікальний індекс — відповідь має лишитись осмисленою.
+    const { Balance, Session } = await import('@atleti/db')
+    await Balance.create({ clientId, coachId, sessionsTotal: 3, sessionsUsed: 0 })
+    await Session.create({
+      clientId, coachId, scheduledAt: new Date(at('10:00')), duration: 60, type: 'regular',
+      status: 'completed', createdBy: 'coach',
+    })
+    const res = await book({ scheduledAt: at('10:00'), type: 'regular' })
+    expect(res.status).toBe(409)
+    expect((await res.json()).error).toBe('Slot already booked')
+  })
+
   it('books a slot within working hours without debiting (debit on completion)', async () => {
     const { Balance } = await import('@atleti/db')
     await Balance.create({ clientId, coachId, sessionsTotal: 3, sessionsUsed: 0 })
