@@ -7,7 +7,10 @@ import { generateSlots, isDayBlocked, getSlotBlock } from '@/lib/slot-utils'
 import { kyivInputToUtc, kyivParts, kyivDateInput } from '@/lib/tz'
 import type { ICoachBlock, DowKey, IWorkingHoursDay } from '@atleti/types'
 
-interface Client { id: string; name: string; nickname: string; remaining: number }
+// remaining — залишок для планування наперед (мінус резерв заплановані).
+// paidLeft — оплачений залишок без резерву; саме він визначає, чи піде баланс у мінус
+// при ретроактивному списанні.
+interface Client { id: string; name: string; nickname: string; remaining: number; paidLeft: number }
 interface Session {
   _id: string
   clientId: string | { name: string }
@@ -123,6 +126,11 @@ export default function CalendarClient({ clients }: { clients: Client[] }) {
   const [statusChanging, setStatusChanging] = useState(false)
   const [confirmDeleteSession, setConfirmDeleteSession] = useState<Session | null>(null)
   const [deleting, setDeleting] = useState(false)
+  const [confirmPastDebt, setConfirmPastDebt] = useState(false)
+  // «Зараз» для рендера модалки додавання. Без тика форма, відкрита о 13:58 на
+  // 14:00, о 14:01 показувала б «Додати заняття», тоді як сервер уже прийняв би
+  // запис як минулий і списав баланс.
+  const [nowMs, setNowMs] = useState(() => Date.now())
 
   // new modals
   const [scheduleOpen, setScheduleOpen] = useState(false)
@@ -180,6 +188,13 @@ export default function CalendarClient({ clients }: { clients: Client[] }) {
 
   useEffect(() => { loadSettings() }, [loadSettings])
   useEffect(() => { loadSessions() }, [loadSessions])
+
+  useEffect(() => {
+    if (!addOpen) return
+    setNowMs(Date.now())
+    const id = setInterval(() => setNowMs(Date.now()), 30_000)
+    return () => clearInterval(id)
+  }, [addOpen])
 
   function prevMonth() {
     if (month === 0) { setYear(y => y - 1); setMonth(11) } else setMonth(m => m - 1)
@@ -317,8 +332,22 @@ export default function CalendarClient({ clients }: { clients: Client[] }) {
     }
   }
 
-  async function handleAddSession(e: React.FormEvent) {
-    e.preventDefault()
+  // Ретроактивний запис: обраний момент уже минув. Поки час не обрано, орієнтуємось
+  // на дату — сьогоднішня ще може виявитись майбутньою, тож минулою не вважається.
+  // `at` дозволяє рендеру рахувати від «тика», а обробникам — від свіжого моменту.
+  function isPastSlot(date: string, time: string, at: number = Date.now()): boolean {
+    if (!date) return false
+    if (!time) return date < kyivDateInput(new Date(at))
+    return kyivInputToUtc(date, time).getTime() <= at
+  }
+
+  function resetSessionForm() {
+    setForm({ clientId: clients[0]?.id ?? '', date: '', time: '', duration: '60', type: 'regular' })
+  }
+
+  async function submitSession() {
+    const past = isPastSlot(form.date, form.time)
+    const savedDate = form.date
     setSaving(true)
     setError('')
     try {
@@ -326,20 +355,40 @@ export default function CalendarClient({ clients }: { clients: Client[] }) {
       const res = await fetch('/api/coach/sessions', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ clientId: form.clientId, scheduledAt, duration: Number(form.duration), type: form.type }),
+        body: JSON.stringify({
+          clientId: form.clientId,
+          scheduledAt,
+          duration: Number(form.duration),
+          type: form.type,
+          status: past ? 'completed' : 'scheduled',
+        }),
       })
       const data = await res.json()
       if (!res.ok) {
         const msg = typeof data.error === 'string' ? data.error : 'Помилка'
+        // Діалог підтвердження закриваємо і при помилці: текст помилки рендериться
+        // у формі під ним, і за відкритим оверлеєм його не було б видно.
+        setConfirmPastDebt(false)
         setError(msg)
         toast.error(msg)
         return
       }
+      setConfirmPastDebt(false)
       setAddOpen(false)
-      toast.success('Заняття додано')
+      toast.success(past ? 'Проведене заняття записано' : 'Заняття додано')
+      // Переводимо календар на дату запису — інакше заняття в іншому місяці
+      // (типовий випадок для «згадав про минулий тиждень») не видно взагалі.
+      const [ny, nm, nd] = savedDate.split('-').map(Number)
+      if (ny && nm && nd) {
+        setYear(ny)
+        setMonth(nm - 1)
+        setSelectedDay(new Date(ny, nm - 1, nd))
+      }
+      resetSessionForm()
       await loadSessions()
       router.refresh()
     } catch {
+      setConfirmPastDebt(false)
       setError('Помилка створення заняття')
       toast.error('Помилка створення заняття')
     } finally {
@@ -347,12 +396,33 @@ export default function CalendarClient({ clients }: { clients: Client[] }) {
     }
   }
 
+  function handleAddSession(e: React.FormEvent) {
+    e.preventDefault()
+    // Ретроактивне списання зменшує лише sessionsUsed, тож у мінус баланс іде за
+    // оплаченим залишком без резерву — `remaining` тут дав би хибну тривогу.
+    const goesNegative = (clients.find(c => c.id === form.clientId)?.paidLeft ?? 0) <= 0
+    if (isPastSlot(form.date, form.time) && goesNegative) {
+      setError('')
+      setConfirmPastDebt(true)
+      return
+    }
+    submitSession()
+  }
+
   // Клік на вільний слот у розкладі дня — відкриваємо "Нове заняття" з підставленими датою/часом
   function openAddForSlot(slot: string) {
     if (!selectedDay) return
     if (clients.length === 0) return
     setError('')
-    setForm(f => ({ ...f, date: dateStr(selectedDay), time: slot }))
+    setForm({ clientId: clients[0]?.id ?? '', date: dateStr(selectedDay), time: slot, duration: '60', type: 'regular' })
+    setAddOpen(true)
+  }
+
+  // Порожня форма при кожному відкритті: інакше після ретроактивного запису модалка
+  // відкрилась би знову в режимі минулого з тими самими датою й часом.
+  function openAddSession() {
+    setError('')
+    resetSessionForm()
     setAddOpen(true)
   }
 
@@ -458,23 +528,44 @@ export default function CalendarClient({ clients }: { clients: Client[] }) {
     ? sessions.filter(s => isSameKyivDay(new Date(s.scheduledAt), selectedDay))
     : []
 
-  function buildDayTimeline() {
+  // Рядок розкладу дня. offSchedule — заняття, час якого не збігається з жодним
+  // слотом графіку (ретроактивний запис, зміна графіку заднім числом): без такого
+  // рядка воно було б невидимим у календарі.
+  type TimelineRow = { slot: string; slotSessions: Session[]; block: ICoachBlock | null; offSchedule: boolean }
+
+  function buildDayTimeline(): TimelineRow[] {
     if (!selectedDay) return []
     const ds = dateStr(selectedDay)
     const dowKey = DOW_KEYS[selectedDay.getDay()] as DowKey
     const dayHours = workingHours[dowKey]
-    if (!dayHours) return []
-    const daySlots = generateSlots(dayHours.start, dayHours.end, dayHours.slotDuration)
-    return daySlots.map(slot => {
+    const daySlots = dayHours ? generateSlots(dayHours.start, dayHours.end, dayHours.slotDuration) : []
+
+    const rows: TimelineRow[] = daySlots.map(slot => {
       const [h, m] = slot.split(':').map(Number)
       // усі заняття цього слоту (для спліту їх кілька — різні клієнти)
       const slotSessions = selectedDaySessions.filter(s => {
         const p = kyivParts(new Date(s.scheduledAt))
         return p.hour === h && p.minute === m
       })
-      const block = getSlotBlock(blocks, slot, ds, dowKey, dayHours.slotDuration)
-      return { slot, slotSessions, block }
+      const block = dayHours ? getSlotBlock(blocks, slot, ds, dowKey, dayHours.slotDuration) : null
+      return { slot, slotSessions, block, offSchedule: false }
     })
+
+    const slotTimes = new Set(daySlots)
+    const offSchedule = new Map<string, Session[]>()
+    for (const s of selectedDaySessions) {
+      const p = kyivParts(new Date(s.scheduledAt))
+      const time = `${String(p.hour).padStart(2, '0')}:${String(p.minute).padStart(2, '0')}`
+      if (slotTimes.has(time)) continue
+      const bucket = offSchedule.get(time)
+      if (bucket) bucket.push(s)
+      else offSchedule.set(time, [s])
+    }
+
+    for (const [time, slotSessions] of offSchedule) {
+      rows.push({ slot: time, slotSessions, block: null, offSchedule: true })
+    }
+    return rows.sort((a, b) => a.slot.localeCompare(b.slot))
   }
 
   // Межі робочого графіку для обраної дати — щоб у виборі часу показувати лише робочі години.
@@ -492,6 +583,14 @@ export default function CalendarClient({ clients }: { clients: Client[] }) {
   const timeline = buildDayTimeline()
   // Обраний у модалці клієнт без вільних занять на балансі — блокуємо створення.
   const selectedClientNoBalance = (clients.find(c => c.id === form.clientId)?.remaining ?? 0) <= 0
+  const isPastForm = isPastSlot(form.date, form.time, nowMs)
+  // Оплачений залишок без резерву — чи піде баланс у мінус від ретроактивного списання.
+  const selectedClientGoesNegative = (clients.find(c => c.id === form.clientId)?.paidLeft ?? 0) <= 0
+  // Робочі години обмежують вибір часу лише при плануванні наперед. Сьогоднішню дату
+  // не обмежуємо: заняття могло відбутись сьогодні поза графіком, а режим минулого
+  // вмикається лише після вибору часу — інакше вийшла б безвихідь «курка-яйце».
+  const restrictHoursForForm = !!form.date && form.date > kyivDateInput(new Date(nowMs))
+  const selectedDayIsPast = selectedDay ? dateStr(selectedDay) < kyivDateInput(new Date(nowMs)) : false
 
   return (
     <div className="space-y-4 pt-4">
@@ -520,7 +619,7 @@ export default function CalendarClient({ clients }: { clients: Client[] }) {
           <span className="hidden sm:inline">Блок</span>
         </button>
         <button
-          onClick={() => { setError(''); setAddOpen(true) }}
+          onClick={openAddSession}
           disabled={clients.length === 0}
           className="ml-auto flex min-w-0 flex-1 items-center justify-center gap-1.5 rounded-md bg-gray-900 px-3 py-2 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-gray-700 active:bg-gray-800 disabled:cursor-not-allowed disabled:opacity-40 sm:flex-none"
         >
@@ -605,10 +704,10 @@ export default function CalendarClient({ clients }: { clients: Client[] }) {
               </GlassCard>
             ) : (
               <div className="space-y-1">
-                {timeline.map(({ slot, slotSessions, block }) => (
+                {timeline.map(({ slot, slotSessions, block, offSchedule }) => (
                   <GlassCard key={slot} className="py-2 px-3">
                     <div className="flex items-start justify-between gap-2">
-                      <span className="text-xs font-mono text-gray-500 shrink-0 pt-1">{slot}</span>
+                      <span className="shrink-0 pt-1 text-xs font-mono text-gray-500">{slot}</span>
                       {block ? (
                         <div className="flex items-center gap-1 flex-1 min-w-0">
                           <span className="flex min-w-0 items-center gap-1 text-xs text-red-500 truncate">
@@ -629,6 +728,9 @@ export default function CalendarClient({ clients }: { clients: Client[] }) {
                         </div>
                       ) : slotSessions.length > 0 ? (
                         <div className="flex-1 min-w-0 space-y-1.5">
+                          {offSchedule && (
+                            <p className="text-[10px] font-medium text-gray-500">Поза графіком</p>
+                          )}
                           {slotSessions.length > 1 && (
                             <p className="text-[10px] font-medium text-purple-600">Спліт · {slotSessions.length} клієнти</p>
                           )}
@@ -664,9 +766,11 @@ export default function CalendarClient({ clients }: { clients: Client[] }) {
                           type="button"
                           onClick={() => openAddForSlot(slot)}
                           disabled={clients.length === 0}
-                          className="flex-1 text-left text-xs text-green-600 hover:text-green-700 pt-1 disabled:text-gray-300 disabled:cursor-not-allowed"
+                          className={`flex-1 pt-1 text-left text-xs disabled:cursor-not-allowed disabled:text-gray-300 ${
+                            selectedDayIsPast ? 'text-gray-500 hover:text-gray-700' : 'text-green-600 hover:text-green-700'
+                          }`}
                         >
-                          + Вільно — запланувати
+                          {selectedDayIsPast ? '+ Записати проведене' : '+ Вільно — запланувати'}
                         </button>
                       )}
                     </div>
@@ -854,7 +958,7 @@ export default function CalendarClient({ clients }: { clients: Client[] }) {
       </GlassModal>
 
       {/* Add session modal */}
-      <GlassModal open={addOpen} onClose={() => setAddOpen(false)} title="Нове заняття">
+      <GlassModal open={addOpen} onClose={() => { setAddOpen(false); setError('') }} title={isPastForm ? 'Проведене заняття' : 'Нове заняття'}>
         <form onSubmit={handleAddSession} className="space-y-3">
           <Select
             value={form.clientId}
@@ -865,8 +969,12 @@ export default function CalendarClient({ clients }: { clients: Client[] }) {
             }))}
             placeholder="Оберіть клієнта"
           />
-          <DatePicker value={form.date} onChange={v => setForm(f => ({ ...f, date: v }))} min={kyivDateInput(new Date())} />
-          <TimePicker value={form.time} onChange={v => setForm(f => ({ ...f, time: v }))} {...hoursForDate(form.date)} />
+          <DatePicker value={form.date} onChange={v => setForm(f => ({ ...f, date: v }))} />
+          <TimePicker
+            value={form.time}
+            onChange={v => setForm(f => ({ ...f, time: v }))}
+            {...(restrictHoursForForm ? hoursForDate(form.date) : {})}
+          />
           <div className="grid grid-cols-2 gap-2">
             <Input type="number" min="15" max="480" value={form.duration}
               onChange={e => setForm(f => ({ ...f, duration: e.target.value }))}
@@ -877,14 +985,19 @@ export default function CalendarClient({ clients }: { clients: Client[] }) {
               options={SESSION_TYPES}
             />
           </div>
-          {selectedClientNoBalance && (
+          {isPastForm ? (
+            <p className="rounded-md bg-blue-50 px-3 py-2 text-xs text-blue-700">
+              Дата в минулому. Заняття буде записане як проведене, з балансу клієнта спишеться 1 заняття.
+              {selectedClientGoesNegative && ' Оплачених занять не лишилось — баланс піде в мінус.'}
+            </p>
+          ) : selectedClientNoBalance && (
             <p className="text-xs text-amber-600 bg-amber-50 rounded-md px-3 py-2">
               У клієнта немає вільних занять на балансі. Поповніть баланс, щоб запланувати заняття.
             </p>
           )}
           {error && <p className="text-xs text-red-500">{error}</p>}
-          <Button type="submit" loading={saving} disabled={saving || selectedClientNoBalance} fullWidth size="lg">
-            {saving ? 'Збереження...' : 'Додати заняття'}
+          <Button type="submit" loading={saving} disabled={saving || (!isPastForm && selectedClientNoBalance)} fullWidth size="lg">
+            {saving ? 'Збереження...' : isPastForm ? 'Записати проведене' : 'Додати заняття'}
           </Button>
         </form>
       </GlassModal>
@@ -896,7 +1009,9 @@ export default function CalendarClient({ clients }: { clients: Client[] }) {
             <p className="text-xs text-gray-500">
               Поточний статус: <span className="font-medium">{STATUS_LABELS[statusModal.status]?.label ?? statusModal.status}</span>
             </p>
-            {statusModal.status !== 'scheduled' && (
+            {/* «Заплановане» в минулому — недосяжний стан: settlePastSessions на першому ж
+                читанні поверне заняття в «проведене». Не пропонуємо дію, що відкотиться. */}
+            {statusModal.status !== 'scheduled' && new Date(statusModal.scheduledAt).getTime() > nowMs && (
               <Button variant="ghost" onClick={() => handleStatusChange(statusModal._id, 'scheduled')} disabled={statusChanging}
                 fullWidth size="lg"
                 className="border border-amber-300 text-amber-700 hover:bg-amber-50 active:bg-amber-100">
@@ -943,6 +1058,18 @@ export default function CalendarClient({ clients }: { clients: Client[] }) {
           </form>
         </GlassModal>
       )}
+
+      {/* Confirm retroactive session that pushes the balance negative */}
+      <ConfirmDialog
+        open={confirmPastDebt}
+        title="Баланс піде в мінус"
+        message="У клієнта немає вільних занять на балансі. Проведене заняття все одно буде записане, а залишок стане від'ємним. Продовжити?"
+        confirmLabel="Записати проведене"
+        cancelLabel="Назад"
+        loading={saving}
+        onConfirm={submitSession}
+        onClose={() => setConfirmPastDebt(false)}
+      />
 
       {/* Confirm session cancellation (delete) */}
       <ConfirmDialog

@@ -9,6 +9,14 @@ interface GlassModalProps {
   children: React.ReactNode
 }
 
+// Спільний лічильник відкритих модалок. Модалки вкладаються (ConfirmDialog поверх
+// форми), і якщо кожна запам'ятовує стиль body «до себе», внутрішня збереже вже
+// заблокований overflow і при закритті поверне його — сторінка лишиться без скролу.
+// Тому знімок робить лише найзовнішня, і лише вона ж його відновлює.
+let scrollLockCount = 0
+let savedOverflow = ''
+let savedPaddingRight = ''
+
 export function GlassModal({ open, onClose, title, children }: GlassModalProps) {
   const [mounted, setMounted] = useState(false)
   useEffect(() => setMounted(true), [])
@@ -18,14 +26,20 @@ export function GlassModal({ open, onClose, title, children }: GlassModalProps) 
   useEffect(() => {
     if (!open) return
     const { body, documentElement } = document
-    const scrollbarW = window.innerWidth - documentElement.clientWidth
-    const prevOverflow = body.style.overflow
-    const prevPadding = body.style.paddingRight
-    body.style.overflow = 'hidden'
-    if (scrollbarW > 0) body.style.paddingRight = `${scrollbarW}px`
+    if (scrollLockCount === 0) {
+      savedOverflow = body.style.overflow
+      savedPaddingRight = body.style.paddingRight
+      const scrollbarW = window.innerWidth - documentElement.clientWidth
+      body.style.overflow = 'hidden'
+      if (scrollbarW > 0) body.style.paddingRight = `${scrollbarW}px`
+    }
+    scrollLockCount++
     return () => {
-      body.style.overflow = prevOverflow
-      body.style.paddingRight = prevPadding
+      scrollLockCount--
+      if (scrollLockCount === 0) {
+        body.style.overflow = savedOverflow
+        body.style.paddingRight = savedPaddingRight
+      }
     }
   }, [open])
 

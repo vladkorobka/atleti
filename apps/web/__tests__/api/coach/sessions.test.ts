@@ -12,6 +12,10 @@ let clientId: string
 const DAY = '2030-06-17'
 const at = (t: string) => kyivInputToUtc(DAY, t).toISOString()
 
+// Фіксований минулий день — для ретроактивного запису проведених занять.
+const PAST_DAY = '2020-06-17'
+const pastAt = (t: string) => kyivInputToUtc(PAST_DAY, t).toISOString()
+
 vi.mock('@/lib/db', () => ({ ensureDB: vi.fn().mockResolvedValue(undefined) }))
 vi.mock('@/lib/auth', () => ({
   auth: vi.fn().mockResolvedValue(null)
@@ -151,6 +155,211 @@ describe('POST /api/coach/sessions — конфлікти', () => {
       status: 'cancelled', createdBy: 'coach',
     })
     expect((await postSession({ clientId, scheduledAt: at('10:00'), duration: 60, type: 'regular' })).status).toBe(201)
+  })
+})
+
+describe('POST /api/coach/sessions — ретроактивний запис проведеного заняття', () => {
+  beforeEach(async () => {
+    const { Balance } = await import('@atleti/db')
+    await Balance.create({ clientId, coachId, sessionsTotal: 100, sessionsUsed: 0, transactions: [] })
+  })
+
+  it('минула дата зі status=completed → 201, заняття проведене, баланс списано', async () => {
+    const { Balance } = await import('@atleti/db')
+    const res = await postSession({
+      clientId, scheduledAt: pastAt('10:00'), duration: 60, type: 'regular', status: 'completed',
+    })
+    expect(res.status).toBe(201)
+    const data = await res.json()
+    expect(data.session.status).toBe('completed')
+    expect(data.session.createdBy).toBe('coach')
+    expect((await Balance.findOne({ clientId, coachId }))?.sessionsUsed).toBe(1)
+  })
+
+  it('минуле не можна запланувати: без status → 400 з поясненням', async () => {
+    const res = await postSession({ clientId, scheduledAt: pastAt('10:00'), duration: 60, type: 'regular' })
+    expect(res.status).toBe(400)
+    expect((await res.json()).error).toBe('Заняття в минулому можна записати лише як проведене')
+  })
+
+  it('минуле не можна запланувати: явний status=scheduled → 400 з поясненням', async () => {
+    const res = await postSession({
+      clientId, scheduledAt: pastAt('10:00'), duration: 60, type: 'regular', status: 'scheduled',
+    })
+    expect(res.status).toBe(400)
+    expect((await res.json()).error).toBe('Заняття в минулому можна записати лише як проведене')
+  })
+
+  it('майбутнє не можна позначити проведеним наперед → 400 з поясненням', async () => {
+    const res = await postSession({
+      clientId, scheduledAt: at('10:00'), duration: 60, type: 'regular', status: 'completed',
+    })
+    expect(res.status).toBe(400)
+    expect((await res.json()).error).toBe('Майбутнє заняття не можна одразу позначити проведеним')
+  })
+
+  it('момент рівно «зараз» вважається минулим', async () => {
+    // Межа `start <= now`. Фіксуємо лише Date — таймери лишаються справжніми,
+    // інакше зависли б операції mongodb-memory-server.
+    const fixed = new Date('2026-08-26T09:00:00.000Z')
+    vi.useFakeTimers({ toFake: ['Date'], now: fixed })
+    try {
+      const res = await postSession({
+        clientId, scheduledAt: fixed.toISOString(), duration: 60, type: 'regular', status: 'completed',
+      })
+      expect(res.status).toBe(201)
+      expect((await res.json()).session.status).toBe('completed')
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('заняття, що триває зараз, фіксується як проведене (як і settlePastSessions)', async () => {
+    // isPast рахується за початком, а не за кінцем — навмисно, щоб збігатися з
+    // settlePastSessions, який закриває заняття за scheduledAt <= now.
+    const { Balance } = await import('@atleti/db')
+    const startedAgo = new Date(Date.now() - 30 * 60_000).toISOString()
+    const res = await postSession({ clientId, scheduledAt: startedAgo, duration: 60, type: 'regular', status: 'completed' })
+    expect(res.status).toBe(201)
+    expect((await Balance.findOne({ clientId, coachId }))?.sessionsUsed).toBe(1)
+  })
+
+  it('минуле поза робочими годинами (02:00) → 201 (графік не перевіряється)', async () => {
+    const res = await postSession({
+      clientId, scheduledAt: pastAt('02:00'), duration: 60, type: 'regular', status: 'completed',
+    })
+    expect(res.status).toBe(201)
+  })
+
+  it('минуле поверх блоку (обід) → 201 (блоки не перевіряються)', async () => {
+    const { CoachBlock } = await import('@atleti/db')
+    await CoachBlock.create({ coachId, type: 'time', date: PAST_DAY, startTime: '12:00', endTime: '13:00', label: 'Обід' })
+    const res = await postSession({
+      clientId, scheduledAt: pastAt('12:00'), duration: 60, type: 'regular', status: 'completed',
+    })
+    expect(res.status).toBe(201)
+  })
+
+  it('минуле при нульовому балансі → 201, залишок іде в мінус', async () => {
+    const { Balance } = await import('@atleti/db')
+    await Balance.updateOne({ clientId, coachId }, { sessionsTotal: 2, sessionsUsed: 2 })
+    const res = await postSession({
+      clientId, scheduledAt: pastAt('10:00'), duration: 60, type: 'regular', status: 'completed',
+    })
+    expect(res.status).toBe(201)
+    const bal = await Balance.findOne({ clientId, coachId })
+    expect(bal!.sessionsTotal - bal!.sessionsUsed).toBe(-1)
+  })
+
+  it('минуле для клієнта без документа балансу → 201, борг створено через upsert', async () => {
+    const { Balance } = await import('@atleti/db')
+    await Balance.deleteMany({})
+    const res = await postSession({
+      clientId, scheduledAt: pastAt('10:00'), duration: 60, type: 'regular', status: 'completed',
+    })
+    expect(res.status).toBe(201)
+    const bal = await Balance.findOne({ clientId, coachId })
+    expect(bal?.sessionsUsed).toBe(1)
+    expect(bal!.sessionsTotal - bal!.sessionsUsed).toBe(-1)
+  })
+
+  it('минуле поверх уже проведеного заняття в той самий час → 409 і баланс не зачеплено', async () => {
+    const { Balance } = await import('@atleti/db')
+    expect((await postSession({
+      clientId, scheduledAt: pastAt('10:00'), duration: 60, type: 'regular', status: 'completed',
+    })).status).toBe(201)
+    expect((await postSession({
+      clientId, scheduledAt: pastAt('10:00'), duration: 60, type: 'regular', status: 'completed',
+    })).status).toBe(409)
+    // Відхилений дубль не має списувати заняття — інакше перенос списання вище
+    // по файлу пройшов би непоміченим.
+    expect((await Balance.findOne({ clientId, coachId }))?.sessionsUsed).toBe(1)
+  })
+
+  it('два минулі Спліт-заняття на той самий час → обидва 201, списано двічі', async () => {
+    const { Balance } = await import('@atleti/db')
+    expect((await postSession({
+      clientId, scheduledAt: pastAt('10:00'), duration: 60, type: 'split', status: 'completed',
+    })).status).toBe(201)
+    expect((await postSession({
+      clientId, scheduledAt: pastAt('10:00'), duration: 60, type: 'split', status: 'completed',
+    })).status).toBe(201)
+    expect((await Balance.findOne({ clientId, coachId }))?.sessionsUsed).toBe(2)
+  })
+
+  it('минуле поверх скасованого заняття → 201', async () => {
+    const { Session } = await import('@atleti/db')
+    await Session.create({
+      clientId, coachId, scheduledAt: new Date(pastAt('10:00')), duration: 60, type: 'regular',
+      status: 'cancelled', createdBy: 'coach',
+    })
+    const res = await postSession({
+      clientId, scheduledAt: pastAt('10:00'), duration: 60, type: 'regular', status: 'completed',
+    })
+    expect(res.status).toBe(201)
+  })
+
+  it('планування наперед ігнорує проведені заняття у вікні кандидатів', async () => {
+    // Вікно кандидатів для майбутнього не включає completed — інакше вже проведені
+    // заняття блокували б планування. Перевіряємо, що гілка isPast не протекла.
+    const { Session } = await import('@atleti/db')
+    await Session.create({
+      clientId, coachId, scheduledAt: new Date(at('10:00')), duration: 60, type: 'regular',
+      status: 'completed', createdBy: 'coach',
+    })
+    const res = await postSession({ clientId, scheduledAt: at('10:00'), duration: 60, type: 'regular' })
+    expect(res.status).toBe(201)
+  })
+
+  // Негайне списання в POST співіснує з лінивим settlePastSessions, з PUT і з DELETE.
+  // Інваріант: sessionsUsed завжди дорівнює кількості проведених занять.
+  it('інваріант балансу через ланцюжок POST(минуле) → settle → PUT → settle → DELETE', async () => {
+    const { Session, Balance } = await import('@atleti/db')
+    const { settlePastSessions } = await import('@/lib/settle-sessions')
+    const used = async () => (await Balance.findOne({ clientId, coachId }))?.sessionsUsed
+    const completed = () => Session.countDocuments({ clientId, coachId, status: 'completed' })
+
+    const created = await postSession({
+      clientId, scheduledAt: pastAt('10:00'), duration: 60, type: 'regular', status: 'completed',
+    })
+    expect(created.status).toBe(201)
+    const sessionId = (await created.json()).session._id as string
+    expect(await used()).toBe(1)
+    expect(await completed()).toBe(1)
+
+    // Повторні читання дашбордів не списують удруге
+    await settlePastSessions({ coachId })
+    await settlePastSessions({ coachId })
+    expect(await used()).toBe(1)
+    expect(await completed()).toBe(1)
+
+    // Спроба «розпровести» минуле заняття: PUT знімає списання, але наступний settle
+    // повертає заняття в completed і списання разом з ним. Баланс лишається чесним.
+    const { PUT, DELETE } = await import('@/app/api/coach/sessions/[sessionId]/route')
+    const putRes = await PUT(
+      new Request(`http://localhost/api/coach/sessions/${sessionId}`, {
+        method: 'PUT',
+        body: JSON.stringify({ status: 'scheduled' }),
+        headers: { 'Content-Type': 'application/json' },
+      }) as any,
+      { params: { sessionId } }
+    )
+    expect(putRes.status).toBe(200)
+    expect(await used()).toBe(0)
+    expect(await completed()).toBe(0)
+
+    await settlePastSessions({ coachId })
+    expect(await used()).toBe(1)
+    expect(await completed()).toBe(1)
+
+    // Видалення повертає списане заняття на баланс
+    const delRes = await DELETE(
+      new Request(`http://localhost/api/coach/sessions/${sessionId}`, { method: 'DELETE' }) as any,
+      { params: { sessionId } }
+    )
+    expect(delRes.status).toBe(200)
+    expect(await used()).toBe(0)
+    expect(await completed()).toBe(0)
   })
 })
 

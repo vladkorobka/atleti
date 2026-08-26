@@ -35,6 +35,8 @@ export const sessionCreateSchema = z.object({
   scheduledAt: z.string().datetime(),
   duration: z.number().int().min(15).max(480).optional().default(60),
   type: z.enum(['regular', 'split', 'online', 'consultation']).optional().default('regular'),
+  // 'completed' — ретроактивний запис уже проведеного заняття (лише для минулої дати)
+  status: z.enum(['scheduled', 'completed']).optional().default('scheduled'),
 })
 
 export const sessionUpdateSchema = z.object({

@@ -38,11 +38,21 @@ export async function PUT(req: NextRequest, { params }: Params) {
     update.$unset = { cancelledBy: '', cancelledByRole: '', cancelReason: '' }
   }
 
+  // Умова по status робить перехід атомарним: між читанням `before` і записом статус
+  // міг змінити settlePastSessions (він виконується на кожному читанні дашбордів).
+  // Без цього фільтра ми б скоригували баланс за дельтою, якої вже не було, і
+  // списали заняття двічі.
   const updatedSession = await Session.findOneAndUpdate(
-    { _id: params.sessionId, coachId: coachSession.userId },
+    { _id: params.sessionId, coachId: coachSession.userId, status: before.status },
     update,
     { new: true }
   )
+  if (!updatedSession) {
+    return NextResponse.json(
+      { error: 'Статус заняття щойно змінився. Оновіть сторінку.' },
+      { status: 409 }
+    )
+  }
 
   // Баланс рахує лише проведені заняття. Коригуємо за дельтою «рахується як використане».
   const wasUsed = before.status === 'completed'

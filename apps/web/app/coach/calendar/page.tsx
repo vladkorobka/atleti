@@ -33,7 +33,10 @@ export default async function CalendarPage() {
     const id = c._id.toString()
     const b = balMap.get(id) ?? { total: 0, used: 0 }
     const remaining = b.total - b.used - (reservedMap.get(id) ?? 0)
-    return { id, name: c.name, nickname: c.nickname, remaining }
+    // Оплачений залишок БЕЗ резерву. Ретроактивний запис списує лише sessionsUsed,
+    // тож у мінус баланс іде саме за цим числом, а не за `remaining`.
+    const paidLeft = b.total - b.used
+    return { id, name: c.name, nickname: c.nickname, remaining, paidLeft }
   })
 
   return <CalendarClient clients={clients} />
