@@ -389,6 +389,40 @@ describe('POST /api/coach/sessions — ретроактивний запис п�
     expect(net).toBe(0)
   })
 
+  it('перемикання статусу туди-сюди не накопичує «Повернення» в журналі', async () => {
+    // Кнопки «Скасувати» і «Позначити проведеним» доступні в UI по черзі, тож цикл
+    // повторюється необмежено. Журнал мусить сходитись після кожного циклу.
+    const { Balance } = await import('@atleti/db')
+    const created = await postSession({
+      clientId, scheduledAt: pastAt('10:00'), duration: 60, type: 'regular', status: 'completed',
+    })
+    const sessionId = (await created.json()).session._id as string
+    const { PUT } = await import('@/app/api/coach/sessions/[sessionId]/route')
+    const setStatus = (status: string) => PUT(
+      new Request(`http://localhost/api/coach/sessions/${sessionId}`, {
+        method: 'PUT',
+        body: JSON.stringify({ status, cancelReason: 'toggle' }),
+        headers: { 'Content-Type': 'application/json' },
+      }) as any,
+      { params: { sessionId } }
+    )
+
+    for (let i = 0; i < 3; i++) {
+      await setStatus('cancelled')
+      await setStatus('completed')
+    }
+
+    const bal = await Balance.findOne({ clientId, coachId })
+    // Заняття проведене рівно один раз — стільки ж і списано
+    expect(bal?.sessionsUsed).toBe(1)
+    // Журнал сходиться з балансом: списань рівно на одне більше за повернення
+    const net = bal!.transactions.reduce((acc, t) => acc + (t.type === 'debit' ? t.sessions : -t.sessions), 0)
+    expect(net).toBe(1)
+    // І типи чергуються, а не накопичуються односторонньо
+    expect(bal!.transactions.filter(t => t.type === 'debit')).toHaveLength(4)
+    expect(bal!.transactions.filter(t => t.type === 'refund')).toHaveLength(3)
+  })
+
   it('PUT зі скасованого на зайнятий слот → 409, не 500', async () => {
     // Скасоване заняття поза індексом; повернення в scheduled заводить його назад,
     // а слот того самого клієнта вже зайнятий проведеним заняттям.

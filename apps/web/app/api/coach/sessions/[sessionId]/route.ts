@@ -71,9 +71,24 @@ export async function PUT(req: NextRequest, { params }: Params) {
   const wasUsed = before.status === 'completed'
   const isUsed = status === 'completed'
   if (!wasUsed && isUsed) {
+    // Симетрично до refund нижче: без цього запису перемикання статусу
+    // «скасувати → позначити проведеним» накопичувало б у клієнта «Повернення»
+    // без парних «Списань». upsert — з тієї ж причини, що й у POST: у клієнта
+    // без жодного поповнення документа балансу ще немає.
     await Balance.updateOne(
       { clientId: before.clientId, coachId: coachSession.userId },
-      { $inc: { sessionsUsed: 1 } }
+      {
+        $inc: { sessionsUsed: 1 },
+        $push: {
+          transactions: {
+            type: 'debit',
+            sessions: 1,
+            note: `Заняття ${slotParts(before.scheduledAt).date} позначене проведеним`,
+            recordedBy: coachSession.userId,
+          },
+        },
+      },
+      { upsert: true }
     )
   } else if (wasUsed && !isUsed) {
     // не даємо піти в мінус. Пишемо refund у журнал: інакше списання, внесене
