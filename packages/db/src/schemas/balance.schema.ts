@@ -2,7 +2,10 @@ import { Schema } from 'mongoose'
 
 const TransactionSchema = new Schema(
   {
-    type: { type: String, enum: ['topup', 'debit'], required: true },
+    // refund — повернення списаного заняття на баланс (скасування проведеного).
+    // Без нього списання, зроблене вручну заднім числом, лишалося б в історії
+    // назавжди навіть після скасування заняття, і журнал брехав би клієнту.
+    type: { type: String, enum: ['topup', 'debit', 'refund'], required: true },
     sessions: { type: Number, required: true },
     note: String,
     createdAt: { type: Date, default: Date.now },

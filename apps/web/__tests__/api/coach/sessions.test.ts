@@ -363,6 +363,81 @@ describe('POST /api/coach/sessions — ретроактивний запис п�
     expect(res.status).toBe(201)
   })
 
+  it('DELETE ретроактивного заняття пише refund — історія не бреше', async () => {
+    const { Balance } = await import('@atleti/db')
+    const created = await postSession({
+      clientId, scheduledAt: pastAt('10:00'), duration: 60, type: 'regular', status: 'completed',
+    })
+    const sessionId = (await created.json()).session._id as string
+
+    const { DELETE } = await import('@/app/api/coach/sessions/[sessionId]/route')
+    const res = await DELETE(
+      new Request(`http://localhost/api/coach/sessions/${sessionId}`, { method: 'DELETE' }) as any,
+      { params: { sessionId } }
+    )
+    expect(res.status).toBe(200)
+
+    const bal = await Balance.findOne({ clientId, coachId })
+    expect(bal?.sessionsUsed).toBe(0)
+    // Без refund у клієнта лишилось би списання за заняття, якого вже не існує
+    expect(bal?.transactions).toHaveLength(2)
+    expect(bal?.transactions[0].type).toBe('debit')
+    expect(bal?.transactions[1].type).toBe('refund')
+    expect(bal?.transactions[1].sessions).toBe(1)
+    // Журнал сходиться з балансом: списано 1, повернено 1
+    const net = bal!.transactions.reduce((acc, t) => acc + (t.type === 'debit' ? t.sessions : -t.sessions), 0)
+    expect(net).toBe(0)
+  })
+
+  it('PUT зі скасованого на зайнятий слот → 409, не 500', async () => {
+    // Скасоване заняття поза індексом; повернення в scheduled заводить його назад,
+    // а слот того самого клієнта вже зайнятий проведеним заняттям.
+    const { Session } = await import('@atleti/db')
+    const cancelled = await Session.create({
+      clientId, coachId, scheduledAt: new Date(pastAt('10:00')), duration: 60, type: 'regular',
+      status: 'cancelled', createdBy: 'coach',
+    })
+    await Session.create({
+      clientId, coachId, scheduledAt: new Date(pastAt('10:00')), duration: 60, type: 'regular',
+      status: 'completed', createdBy: 'coach',
+    })
+
+    const { PUT } = await import('@/app/api/coach/sessions/[sessionId]/route')
+    const sessionId = cancelled._id.toString()
+    const res = await PUT(
+      new Request(`http://localhost/api/coach/sessions/${sessionId}`, {
+        method: 'PUT',
+        body: JSON.stringify({ status: 'scheduled' }),
+        headers: { 'Content-Type': 'application/json' },
+      }) as any,
+      { params: { sessionId } }
+    )
+    expect(res.status).toBe(409)
+    expect((await res.json()).error).toBe('У цього клієнта вже є інше заняття на цей час')
+  })
+
+  it('PUT «більше не проведене» теж пише refund', async () => {
+    const { Balance } = await import('@atleti/db')
+    const created = await postSession({
+      clientId, scheduledAt: pastAt('10:00'), duration: 60, type: 'regular', status: 'completed',
+    })
+    const sessionId = (await created.json()).session._id as string
+
+    const { PUT } = await import('@/app/api/coach/sessions/[sessionId]/route')
+    await PUT(
+      new Request(`http://localhost/api/coach/sessions/${sessionId}`, {
+        method: 'PUT',
+        body: JSON.stringify({ status: 'cancelled', cancelReason: 'помилковий запис' }),
+        headers: { 'Content-Type': 'application/json' },
+      }) as any,
+      { params: { sessionId } }
+    )
+
+    const bal = await Balance.findOne({ clientId, coachId })
+    expect(bal?.sessionsUsed).toBe(0)
+    expect(bal?.transactions.map(t => t.type)).toEqual(['debit', 'refund'])
+  })
+
   // Негайне списання в POST співіснує з лінивим settlePastSessions, з PUT і з DELETE.
   // Інваріант: sessionsUsed завжди дорівнює кількості проведених занять.
   it('інваріант балансу через ланцюжок POST(минуле) → settle → PUT → settle → DELETE', async () => {

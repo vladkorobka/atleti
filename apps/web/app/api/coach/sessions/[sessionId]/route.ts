@@ -76,10 +76,22 @@ export async function PUT(req: NextRequest, { params }: Params) {
       { $inc: { sessionsUsed: 1 } }
     )
   } else if (wasUsed && !isUsed) {
-    // не даємо піти в мінус
+    // не даємо піти в мінус. Пишемо refund у журнал: інакше списання, внесене
+    // тренером заднім числом, лишилось би в історії клієнта після того, як
+    // заняття перестало бути проведеним.
     await Balance.updateOne(
       { clientId: before.clientId, coachId: coachSession.userId, sessionsUsed: { $gte: 1 } },
-      { $inc: { sessionsUsed: -1 } }
+      {
+        $inc: { sessionsUsed: -1 },
+        $push: {
+          transactions: {
+            type: 'refund',
+            sessions: 1,
+            note: `Заняття ${slotParts(before.scheduledAt).date} більше не проведене`,
+            recordedBy: coachSession.userId,
+          },
+        },
+      }
     )
   }
 
@@ -170,9 +182,22 @@ export async function DELETE(_req: NextRequest, { params }: Params) {
   if (!existing) return NextResponse.json({ error: 'Session not found' }, { status: 404 })
 
   if (existing.status === 'completed') {
+    // Разом із поверненням пишемо refund: діалог скасування прямо обіцяє клієнту
+    // повернення, і без запису в історії лишилось би списання за заняття, якого
+    // більше немає.
     await Balance.updateOne(
       { clientId: existing.clientId, coachId: coachSession.userId, sessionsUsed: { $gte: 1 } },
-      { $inc: { sessionsUsed: -1 } }
+      {
+        $inc: { sessionsUsed: -1 },
+        $push: {
+          transactions: {
+            type: 'refund',
+            sessions: 1,
+            note: `Скасовано проведене заняття ${slotParts(existing.scheduledAt).date}`,
+            recordedBy: coachSession.userId,
+          },
+        },
+      }
     )
   }
 

@@ -4,6 +4,7 @@ import { ensureDB } from '@/lib/db'
 import { ClientCoach, Balance, Session } from '@atleti/db'
 import type { AtletiSession } from '@atleti/types'
 import { settlePastSessions } from '@/lib/settle-sessions'
+import { sessionsAvailable, sessionsDebt } from '@/lib/balance'
 
 export async function GET() {
   const session = await auth()
@@ -42,12 +43,8 @@ export async function GET() {
     })
   }
 
-  // Доступно для бронювання = всього - проведено - заплановано (резерв).
-  const available = Math.max(0, balance.sessionsTotal - balance.sessionsUsed - reserved)
-  // Борг: проведених занять більше, ніж оплачених. Виникає, коли тренер записує
-  // проведене заняття заднім числом при вичерпаному балансі. Без окремого числа
-  // клієнт бачив би 0 і після поповнення — знову 0, без пояснення.
-  const debt = Math.max(0, balance.sessionsUsed - balance.sessionsTotal)
+  const available = sessionsAvailable(balance, reserved)
+  const debt = sessionsDebt(balance)
   return NextResponse.json({
     balance: {
       sessionsTotal: balance.sessionsTotal,
