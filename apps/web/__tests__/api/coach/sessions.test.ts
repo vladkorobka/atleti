@@ -385,8 +385,32 @@ describe('POST /api/coach/sessions — ретроактивний запис п�
     expect(bal?.transactions[1].type).toBe('refund')
     expect(bal?.transactions[1].sessions).toBe(1)
     // Журнал сходиться з балансом: списано 1, повернено 1
-    const net = bal!.transactions.reduce((acc, t) => acc + (t.type === 'debit' ? t.sessions : -t.sessions), 0)
+    const net = bal!.transactions.reduce((acc, t) => acc + (t.type === 'debit' ? t.sessions : t.type === 'refund' ? -t.sessions : 0), 0)
     expect(net).toBe(0)
+  })
+
+  it('минуле заняття не можна повернути в заплановані → 400, баланс недоторканий', async () => {
+    const { Balance } = await import('@atleti/db')
+    const created = await postSession({
+      clientId, scheduledAt: pastAt('10:00'), duration: 60, type: 'regular', status: 'completed',
+    })
+    const sessionId = (await created.json()).session._id as string
+
+    const { PUT } = await import('@/app/api/coach/sessions/[sessionId]/route')
+    const res = await PUT(
+      new Request(`http://localhost/api/coach/sessions/${sessionId}`, {
+        method: 'PUT',
+        body: JSON.stringify({ status: 'scheduled' }),
+        headers: { 'Content-Type': 'application/json' },
+      }) as any,
+      { params: { sessionId } }
+    )
+    expect(res.status).toBe(400)
+    expect((await res.json()).error).toBe('Заняття в минулому не можна повернути в заплановані')
+
+    const bal = await Balance.findOne({ clientId, coachId })
+    expect(bal?.sessionsUsed).toBe(1)
+    expect(bal?.transactions.map(t => t.type)).toEqual(['debit'])
   })
 
   it('перемикання статусу туди-сюди не накопичує «Повернення» в журналі', async () => {
@@ -416,7 +440,7 @@ describe('POST /api/coach/sessions — ретроактивний запис п�
     // Заняття проведене рівно один раз — стільки ж і списано
     expect(bal?.sessionsUsed).toBe(1)
     // Журнал сходиться з балансом: списань рівно на одне більше за повернення
-    const net = bal!.transactions.reduce((acc, t) => acc + (t.type === 'debit' ? t.sessions : -t.sessions), 0)
+    const net = bal!.transactions.reduce((acc, t) => acc + (t.type === 'debit' ? t.sessions : t.type === 'refund' ? -t.sessions : 0), 0)
     expect(net).toBe(1)
     // І типи чергуються, а не накопичуються односторонньо
     expect(bal!.transactions.filter(t => t.type === 'debit')).toHaveLength(4)
@@ -426,14 +450,16 @@ describe('POST /api/coach/sessions — ретроактивний запис п�
   it('PUT зі скасованого на зайнятий слот → 409, не 500', async () => {
     // Скасоване заняття поза індексом; повернення в scheduled заводить його назад,
     // а слот того самого клієнта вже зайнятий проведеним заняттям.
+    // Час майбутній: минуле заняття не можна повернути в заплановані взагалі,
+    // тож перевірку індексу треба ставити там, де перехід дозволений.
     const { Session } = await import('@atleti/db')
     const cancelled = await Session.create({
-      clientId, coachId, scheduledAt: new Date(pastAt('10:00')), duration: 60, type: 'regular',
+      clientId, coachId, scheduledAt: new Date(at('10:00')), duration: 60, type: 'regular',
       status: 'cancelled', createdBy: 'coach',
     })
     await Session.create({
-      clientId, coachId, scheduledAt: new Date(pastAt('10:00')), duration: 60, type: 'regular',
-      status: 'completed', createdBy: 'coach',
+      clientId, coachId, scheduledAt: new Date(at('10:00')), duration: 60, type: 'regular',
+      status: 'scheduled', createdBy: 'coach',
     })
 
     const { PUT } = await import('@/app/api/coach/sessions/[sessionId]/route')
@@ -494,8 +520,8 @@ describe('POST /api/coach/sessions — ретроактивний запис п�
     expect(await used()).toBe(1)
     expect(await completed()).toBe(1)
 
-    // Спроба «розпровести» минуле заняття: PUT знімає списання, але наступний settle
-    // повертає заняття в completed і списання разом з ним. Баланс лишається чесним.
+    // «Розпровести» минуле заняття не можна: settle однаково поверне його в
+    // completed, тож перехід відхиляється, а баланс лишається недоторканим.
     const { PUT, DELETE } = await import('@/app/api/coach/sessions/[sessionId]/route')
     const putRes = await PUT(
       new Request(`http://localhost/api/coach/sessions/${sessionId}`, {
@@ -505,9 +531,9 @@ describe('POST /api/coach/sessions — ретроактивний запис п�
       }) as any,
       { params: { sessionId } }
     )
-    expect(putRes.status).toBe(200)
-    expect(await used()).toBe(0)
-    expect(await completed()).toBe(0)
+    expect(putRes.status).toBe(400)
+    expect(await used()).toBe(1)
+    expect(await completed()).toBe(1)
 
     await settlePastSessions({ coachId })
     expect(await used()).toBe(1)

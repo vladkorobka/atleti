@@ -24,9 +24,19 @@ export async function PUT(req: NextRequest, { params }: Params) {
   }
   const { status, cancelReason } = parsed.data
 
-  // Тренер може змінити статус будь-якого заняття (навіть минулого) у будь-який бік.
   const before = await Session.findOne({ _id: params.sessionId, coachId: coachSession.userId })
   if (!before) return NextResponse.json({ error: 'Session not found' }, { status: 404 })
+
+  // «Заплановане» в минулому — недосяжний стан: settlePastSessions на першому ж
+  // читанні поверне заняття в completed. Дозволяти цей перехід означало б мовчки
+  // відкочувати дію тренера і накопичувати непарні «Повернення» в журналі клієнта.
+  // Дзеркально до правила в POST: минуле буває тільки проведеним або скасованим.
+  if (status === 'scheduled' && before.scheduledAt <= new Date()) {
+    return NextResponse.json(
+      { error: 'Заняття в минулому не можна повернути в заплановані' },
+      { status: 400 }
+    )
+  }
 
   const update: Record<string, unknown> = { $set: { status } }
   if (status === 'cancelled') {
@@ -72,9 +82,9 @@ export async function PUT(req: NextRequest, { params }: Params) {
   const isUsed = status === 'completed'
   if (!wasUsed && isUsed) {
     // Симетрично до refund нижче: без цього запису перемикання статусу
-    // «скасувати → позначити проведеним» накопичувало б у клієнта «Повернення»
-    // без парних «Списань». upsert — з тієї ж причини, що й у POST: у клієнта
-    // без жодного поповнення документа балансу ще немає.
+    // (для майбутнього заняття — «проведене» ↔ «заплановане») накопичувало б у
+    // клієнта «Повернення» без парних «Списань». upsert — з тієї ж причини, що
+    // й у POST: у клієнта без жодного поповнення документа балансу ще немає.
     await Balance.updateOne(
       { clientId: before.clientId, coachId: coachSession.userId },
       {
