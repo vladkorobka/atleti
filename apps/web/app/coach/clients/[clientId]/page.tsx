@@ -10,6 +10,7 @@ import RemoveClientButton from './RemoveClientButton'
 import Link from 'next/link'
 import { settlePastSessions } from '@/lib/settle-sessions'
 import { formatKyiv } from '@/lib/tz'
+import { pluralSessions } from '@/lib/balance'
 
 export const metadata = { title: 'Клієнт' }
 
@@ -54,8 +55,14 @@ export default async function ClientDetailPage({ params }: { params: { clientId:
         <GlassCard>
           <div className="flex items-center justify-between mb-3">
             <div>
-              <p className="text-3xl font-bold text-gray-900">{sessionsRemaining}</p>
-              <p className="text-xs text-gray-500">залишилось занять</p>
+              <p className={`text-3xl font-bold ${sessionsRemaining < 0 ? 'text-red-600' : 'text-gray-900'}`}>
+                {sessionsRemaining}
+              </p>
+              <p className="text-xs text-gray-500">
+                {sessionsRemaining < 0
+                  ? `борг: ${-sessionsRemaining} ${pluralSessions(-sessionsRemaining)}`
+                  : 'залишилось занять'}
+              </p>
             </div>
             <div className="text-right">
               <p className="text-sm text-gray-500">Всього: {balance?.sessionsTotal ?? 0}</p>

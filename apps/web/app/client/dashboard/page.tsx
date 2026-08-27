@@ -8,6 +8,7 @@ import Link from 'next/link'
 import { AcceptInviteButton } from '../coach/AcceptInviteButton'
 import { settlePastSessions } from '@/lib/settle-sessions'
 import { formatKyiv } from '@/lib/tz'
+import { sessionsAvailable, sessionsDebt, pluralSessions } from '@/lib/balance'
 
 const sessionTypeLabel: Record<string, string> = {
   regular: 'Тренування',
@@ -60,7 +61,8 @@ export default async function ClientDashboard() {
     ])
   }
 
-  const available = balance ? Math.max(0, balance.sessionsTotal - balance.sessionsUsed - reserved) : 0
+  const available = balance ? sessionsAvailable(balance, reserved) : 0
+  const debt = balance ? sessionsDebt(balance) : 0
 
   return (
     <div className="space-y-4 pt-4">
@@ -102,6 +104,11 @@ export default async function ClientDashboard() {
                 Заплановано: <span className="font-medium text-amber-600">{reserved}</span>
                 {'  ·  '}Проведено: <span className="font-medium text-gray-700">{balance.sessionsUsed}</span>
               </p>
+              {debt > 0 && (
+                <p className="mt-2 rounded-md bg-red-50 px-3 py-2 text-xs text-red-700">
+                  Заборговано: {debt} {pluralSessions(debt)} — поповніть баланс, щоб бронювати далі.
+                </p>
+              )}
             </GlassCard>
           ) : (
             <GlassCard>

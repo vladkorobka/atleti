@@ -4,6 +4,7 @@ import { ensureDB } from '@/lib/db'
 import { ClientCoach, Balance, Session } from '@atleti/db'
 import type { AtletiSession } from '@atleti/types'
 import { settlePastSessions } from '@/lib/settle-sessions'
+import { sessionsAvailable, sessionsDebt } from '@/lib/balance'
 
 export async function GET() {
   const session = await auth()
@@ -37,19 +38,20 @@ export async function GET() {
     return NextResponse.json({
       balance: {
         sessionsTotal: 0, sessionsUsed: 0, sessionsReserved: reserved,
-        sessionsAvailable: 0, sessionsRemaining: 0, transactions: [],
+        sessionsAvailable: 0, sessionsDebt: 0, sessionsRemaining: 0, transactions: [],
       },
     })
   }
 
-  // Доступно для бронювання = всього - проведено - заплановано (резерв).
-  const available = Math.max(0, balance.sessionsTotal - balance.sessionsUsed - reserved)
+  const available = sessionsAvailable(balance, reserved)
+  const debt = sessionsDebt(balance)
   return NextResponse.json({
     balance: {
       sessionsTotal: balance.sessionsTotal,
       sessionsUsed: balance.sessionsUsed,
       sessionsReserved: reserved,
       sessionsAvailable: available,
+      sessionsDebt: debt,
       // sessionsRemaining лишаємо для зворотної сумісності (всього - проведено)
       sessionsRemaining: balance.sessionsTotal - balance.sessionsUsed,
       transactions: balance.transactions,

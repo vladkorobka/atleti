@@ -5,6 +5,7 @@ import { ClientCoach, Balance, Session } from '@atleti/db'
 import type { AtletiSession } from '@atleti/types'
 import { GlassCard, Badge } from '@atleti/ui'
 import { settlePastSessions } from '@/lib/settle-sessions'
+import { sessionsAvailable, sessionsDebt, pluralSessions } from '@/lib/balance'
 
 function formatDate(date: Date): string {
   return new Date(date).toLocaleDateString('uk-UA', {
@@ -62,7 +63,8 @@ export default async function BalancePage() {
     coachId: relationship.coachId,
     status: 'scheduled',
   })
-  const sessionsAvailable = Math.max(0, balance.sessionsTotal - balance.sessionsUsed - reserved)
+  const available = sessionsAvailable(balance, reserved)
+  const debt = sessionsDebt(balance)
   const transactions = [...(balance.transactions ?? [])].reverse()
 
   return (
@@ -72,7 +74,7 @@ export default async function BalancePage() {
       <GlassCard>
         <div className="grid grid-cols-4 gap-2 text-center">
           <div>
-            <p className={`text-2xl font-semibold ${sessionsAvailable === 0 ? 'text-red-500' : 'text-gray-900'}`}>{sessionsAvailable}</p>
+            <p className={`text-2xl font-semibold ${available === 0 ? 'text-red-500' : 'text-gray-900'}`}>{available}</p>
             <p className="text-[11px] text-gray-500 mt-0.5">Доступно</p>
           </div>
           <div>
@@ -88,6 +90,12 @@ export default async function BalancePage() {
             <p className="text-[11px] text-gray-500 mt-0.5">Всього</p>
           </div>
         </div>
+        {debt > 0 && (
+          <p className="mt-3 rounded-md bg-red-50 px-3 py-2 text-xs text-red-700">
+            Заборговано: {debt} {pluralSessions(debt)}. Проведених занять більше,
+            ніж оплачених — поповніть баланс, щоб бронювати далі.
+          </p>
+        )}
       </GlassCard>
 
       <h2 className="text-lg font-medium text-gray-900">Транзакції</h2>
@@ -102,16 +110,16 @@ export default async function BalancePage() {
             <GlassCard key={i}>
               <div className="flex items-center justify-between">
                 <div>
-                  <Badge variant={tx.type === 'topup' ? 'success' : 'danger'}>
-                    {tx.type === 'topup' ? 'Поповнення' : 'Списання'}
+                  <Badge variant={tx.type === 'debit' ? 'danger' : 'success'}>
+                    {tx.type === 'topup' ? 'Поповнення' : tx.type === 'refund' ? 'Повернення' : 'Списання'}
                   </Badge>
                   {tx.note && (
                     <p className="text-sm text-gray-500 mt-1">{tx.note}</p>
                   )}
                   <p className="text-xs text-gray-400 mt-0.5">{formatDate(tx.createdAt)}</p>
                 </div>
-                <p className={`text-base font-medium ${tx.type === 'topup' ? 'text-green-600' : 'text-red-500'}`}>
-                  {tx.type === 'topup' ? '+' : '-'}{tx.sessions}
+                <p className={`text-base font-medium ${tx.type === 'debit' ? 'text-red-500' : 'text-green-600'}`}>
+                  {tx.type === 'debit' ? '-' : '+'}{tx.sessions}
                 </p>
               </div>
             </GlassCard>

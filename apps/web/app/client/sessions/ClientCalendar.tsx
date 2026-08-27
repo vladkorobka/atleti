@@ -3,6 +3,7 @@ import { useState, useEffect, useCallback } from 'react'
 import { GlassCard, Badge, CenteredSpinner, Spinner, ConfirmDialog, Button } from '@atleti/ui'
 import { toast } from 'sonner'
 import { kyivParts, formatKyiv, kyivInputToUtc } from '@/lib/tz'
+import { sessionsAvailable, sessionsDebt, pluralSessions } from '@/lib/balance'
 
 interface Session {
   _id: string
@@ -77,7 +78,7 @@ export default function ClientCalendar() {
   const [booking, setBooking] = useState(false)
   const [bookingError, setBookingError] = useState('')
 
-  interface BalanceInfo { total: number; used: number; reserved: number; available: number }
+  interface BalanceInfo { total: number; used: number; reserved: number; available: number; debt: number }
   const [balanceInfo, setBalanceInfo] = useState<BalanceInfo | null>(null)
   const sessionsRemaining = balanceInfo?.available ?? null
 
@@ -105,7 +106,10 @@ export default function ClientCalendar() {
         total: b.sessionsTotal ?? 0,
         used: b.sessionsUsed ?? 0,
         reserved: b.sessionsReserved ?? 0,
-        available: b.sessionsAvailable ?? Math.max(0, (b.sessionsTotal ?? 0) - (b.sessionsUsed ?? 0) - (b.sessionsReserved ?? 0)),
+        available: b.sessionsAvailable ?? sessionsAvailable(
+          { sessionsTotal: b.sessionsTotal ?? 0, sessionsUsed: b.sessionsUsed ?? 0 }, b.sessionsReserved ?? 0
+        ),
+        debt: b.sessionsDebt ?? sessionsDebt({ sessionsTotal: b.sessionsTotal ?? 0, sessionsUsed: b.sessionsUsed ?? 0 }),
       })
     } catch {
       // баланс необов'язковий для відображення
@@ -259,6 +263,12 @@ export default function ClientCalendar() {
               <p className="text-[11px] text-gray-500 mt-0.5">Всього</p>
             </div>
           </div>
+          {balanceInfo.debt > 0 && (
+            <p className="mt-3 rounded-md bg-red-50 px-3 py-2 text-xs text-red-700">
+              Заборговано: {balanceInfo.debt} {pluralSessions(balanceInfo.debt)}. Проведених занять більше,
+              ніж оплачених — поповніть баланс, щоб бронювати далі.
+            </p>
+          )}
         </GlassCard>
       )}
 
