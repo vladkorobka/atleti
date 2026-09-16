@@ -65,6 +65,27 @@ describe('GET /api/client/balance', () => {
     expect(data.balance.sessionsRemaining).toBe(6)
   })
 
+  it('віддає sessionsDebt, коли проведених більше за оплачені', async () => {
+    const { ClientCoach, Balance } = await import('@atleti/db')
+    await ClientCoach.create({ clientId, coachId, status: 'active' })
+    // Тренер записав два заняття заднім числом при пакеті на 3 — борг 1
+    await Balance.create({ clientId, coachId, sessionsTotal: 3, sessionsUsed: 4, transactions: [] })
+    const { GET } = await import('@/app/api/client/balance/route')
+    const data = await (await GET()).json()
+    // Доступне лишається клемпнутим у 0, борг показується окремим числом
+    expect(data.balance.sessionsAvailable).toBe(0)
+    expect(data.balance.sessionsDebt).toBe(1)
+    expect(data.balance.sessionsRemaining).toBe(-1)
+  })
+
+  it('sessionsDebt = 0, коли балансу вистачає', async () => {
+    const { ClientCoach, Balance } = await import('@atleti/db')
+    await ClientCoach.create({ clientId, coachId, status: 'active' })
+    await Balance.create({ clientId, coachId, sessionsTotal: 10, sessionsUsed: 4, transactions: [] })
+    const { GET } = await import('@/app/api/client/balance/route')
+    expect((await (await GET()).json()).balance.sessionsDebt).toBe(0)
+  })
+
   it('returns 401 when not authenticated', async () => {
     vi.mocked((await import('@/lib/auth')).auth).mockResolvedValueOnce(null as any)
     const { GET } = await import('@/app/api/client/balance/route')

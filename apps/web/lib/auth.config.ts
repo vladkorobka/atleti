@@ -12,6 +12,7 @@ export const authConfig: NextAuthConfig = {
       s.user.userId = token.userId as string
       s.user.role = token.role as AtletiSession['role']
       s.user.nickname = token.nickname as string
+      s.user.emailVerified = token.emailVerified as boolean | undefined
       return session
     },
     async jwt({ token }) {

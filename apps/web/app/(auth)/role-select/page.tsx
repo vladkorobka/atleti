@@ -1,6 +1,6 @@
 'use client'
 import { useState } from 'react'
-import { GlassCard } from '@atleti/ui'
+import { GlassCard, Button, Input } from '@atleti/ui'
 
 export default function RoleSelectPage() {
   const [role, setRole] = useState<'coach' | 'client'>('client')
@@ -35,14 +35,12 @@ export default function RoleSelectPage() {
             </button>
           ))}
         </div>
-        <input placeholder="Нікнейм" required value={nickname}
-          onChange={(e) => setNickname(e.target.value.toLowerCase().replace(/\s/g, ''))}
-          className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-400" />
+        <Input placeholder="Нікнейм" required value={nickname}
+          onChange={(e) => setNickname(e.target.value.toLowerCase().replace(/\s/g, ''))} />
         {error && <p className="text-red-500 text-xs">{error}</p>}
-        <button type="submit" disabled={loading}
-          className="w-full bg-gray-900 text-white rounded-md py-2.5 text-sm font-medium hover:bg-gray-700 transition-colors disabled:opacity-50">
+        <Button type="submit" loading={loading} fullWidth size="lg">
           {loading ? 'Збереження...' : 'Продовжити'}
-        </button>
+        </Button>
       </form>
     </GlassCard>
   )

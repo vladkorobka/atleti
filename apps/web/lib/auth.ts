@@ -1,5 +1,6 @@
 import NextAuth from 'next-auth'
-import Google from 'next-auth/providers/google'
+// Google-провайдер тимчасово вимкнено
+// import Google from 'next-auth/providers/google'
 import Credentials from 'next-auth/providers/credentials'
 import bcrypt from 'bcryptjs'
 import { ensureDB } from './db'
@@ -10,10 +11,11 @@ import { authConfig } from './auth.config'
 export const { handlers, signIn, signOut, auth } = NextAuth({
   ...authConfig,
   providers: [
-    Google({
-      clientId: process.env.GOOGLE_CLIENT_ID!,
-      clientSecret: process.env.GOOGLE_CLIENT_SECRET!,
-    }),
+    // Google-провайдер тимчасово вимкнено
+    // Google({
+    //   clientId: process.env.GOOGLE_CLIENT_ID!,
+    //   clientSecret: process.env.GOOGLE_CLIENT_SECRET!,
+    // }),
     Credentials({
       credentials: {
         email: { label: 'Email', type: 'email' },
@@ -40,6 +42,8 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
           await User.create({
             email: user.email, name: user.name, avatar: user.image,
             googleId: account.providerAccountId, role: 'client', nickname: '',
+            // Google вже підтвердив email — не вимагаємо повторного підтвердження
+            emailVerified: true,
           })
         } else if (!(existing as any).googleId) {
           await User.updateOne({ _id: existing._id }, { googleId: account.providerAccountId })
@@ -58,6 +62,7 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
           token.nickname = (dbUser as any).nickname
           token.name = dbUser.name
           token.email = dbUser.email
+          token.emailVerified = (dbUser as any).emailVerified
         }
       }
       return token

@@ -1,0 +1,40 @@
+<h2>Як тренер керує доступністю?</h2>
+<p class="subtitle">Вкладка Calendar — яка модель управління слотами?</p>
+
+<div class="options">
+  <div class="option" data-choice="a" onclick="toggleSelect(this)">
+    <div class="letter">A</div>
+    <div class="content">
+      <h3>Розклад + ручне блокування</h3>
+      <p>Тренер один раз налаштовує робочий графік (пн-нд, час початку/кінця, тривалість слоту). Потім у конкретні дні може заблокувати окремі слоти (обід, відпустка тощо). Клієнти бачать лише незаблоковані слоти.</p>
+      <div class="pros-cons" style="margin-top:8px">
+        <div class="pros"><h4>Плюси</h4><ul><li>Один раз налаштував — завжди працює</li><li>Менше рутини</li></ul></div>
+        <div class="cons"><h4>Мінуси</h4><ul><li>Потрібна окрема схема для блоків</li></ul></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="option" data-choice="b" onclick="toggleSelect(this)">
+    <div class="letter">B</div>
+    <div class="content">
+      <h3>Тільки явні слоти на конкретні дати</h3>
+      <p>Тренер щодня/щотижня вручну "відкриває" потрібні слоти. Немає шаблону — лише конкретні дати і час. Клієнти бачать лише те, що тренер відкрив.</p>
+      <div class="pros-cons" style="margin-top:8px">
+        <div class="pros"><h4>Плюси</h4><ul><li>Максимальний контроль</li><li>Простіша модель даних</li></ul></div>
+        <div class="cons"><h4>Мінуси</h4><ul><li>Рутина — треба відкривати слоти щотижня</li><li>Більше ручної роботи</li></ul></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="option" data-choice="c" onclick="toggleSelect(this)">
+    <div class="letter">C</div>
+    <div class="content">
+      <h3>Шаблон + виключення + блоки</h3>
+      <p>Тренер налаштовує повторюваний шаблон (робочі години на кожен день тижня). Може додавати виключення на конкретні дати (вихідний або додатковий день). Може блокувати окремі слоти всередині дня.</p>
+      <div class="pros-cons" style="margin-top:8px">
+        <div class="pros"><h4>Плюси</h4><ul><li>Найгнучкіший варіант</li><li>Підходить для відпусток, свят</li></ul></div>
+        <div class="cons"><h4>Мінуси</h4><ul><li>Найскладніша реалізація</li></ul></div>
+      </div>
+    </div>
+  </div>
+</div>

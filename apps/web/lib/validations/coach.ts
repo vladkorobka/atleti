@@ -26,15 +26,21 @@ export const balanceTopupSchema = z.object({
   note: z.string().max(200).optional(),
 })
 
+export const anamnesisSchema = z.object({
+  anamnesis: z.string().max(5000),
+})
+
 export const sessionCreateSchema = z.object({
   clientId: z.string().min(1),
   scheduledAt: z.string().datetime(),
   duration: z.number().int().min(15).max(480).optional().default(60),
   type: z.enum(['regular', 'split', 'online', 'consultation']).optional().default('regular'),
+  // 'completed' — ретроактивний запис уже проведеного заняття (лише для минулої дати)
+  status: z.enum(['scheduled', 'completed']).optional().default('scheduled'),
 })
 
 export const sessionUpdateSchema = z.object({
-  status: z.enum(['completed', 'cancelled']),
+  status: z.enum(['scheduled', 'completed', 'cancelled']),
   cancelReason: z.string().max(500).optional(),
 })
 

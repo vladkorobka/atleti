@@ -3,6 +3,7 @@ import { redirect } from 'next/navigation'
 import type { AtletiSession } from '@atleti/types'
 import { CoachBottomNav, CoachTopNav } from './CoachNav'
 import { LogoutButton } from '@/components/LogoutButton'
+import { Logo } from '@/components/Logo'
 
 export default async function CoachLayout({ children }: { children: React.ReactNode }) {
   const session = await auth()
@@ -11,7 +12,7 @@ export default async function CoachLayout({ children }: { children: React.ReactN
   return (
     <div className="min-h-screen bg-gray-50">
       <header className="bg-white/70 backdrop-blur-sm border-b border-gray-200 px-4 py-3 flex items-center justify-between sticky top-0 z-30">
-        <span className="font-semibold text-gray-900">Атлеті</span>
+        <Logo className="h-7" />
         <CoachTopNav />
         <div className="flex items-center gap-2">
           <span className="text-sm text-gray-500 lg:hidden">{user.name}</span>

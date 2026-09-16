@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { checkWithinSchedule, utcSlotParts } from '../../lib/coach-schedule'
+import { checkWithinSchedule, slotParts } from '../../lib/coach-schedule'
 import type { ICoachBlock, IWorkingHoursDay } from '@atleti/types'
 
 const hours: IWorkingHoursDay = { start: '09:00', end: '18:00', slotDuration: 60 }
@@ -39,11 +39,12 @@ describe('checkWithinSchedule', () => {
   })
 })
 
-describe('utcSlotParts', () => {
-  it('розбирає UTC wall-clock', () => {
-    const { date, dowKey, startMin } = utcSlotParts(new Date('2026-06-15T10:30:00.000Z'))
+describe('slotParts (київський пояс)', () => {
+  it('розбирає момент у київський настінний час', () => {
+    // 07:30Z = 10:30 Kyiv на пн 15 черв 2026
+    const { date, dowKey, startMin } = slotParts(new Date('2026-06-15T07:30:00.000Z'))
     expect(date).toBe('2026-06-15')
-    expect(dowKey).toBe('mon') // 15 червня 2026 — понеділок
+    expect(dowKey).toBe('mon')
     expect(startMin).toBe(10 * 60 + 30)
   })
 })

@@ -1,6 +1,9 @@
 'use client'
 import { useState, useEffect, useCallback } from 'react'
-import { GlassCard, Badge } from '@atleti/ui'
+import { GlassCard, Badge, CenteredSpinner, Spinner, ConfirmDialog, Button } from '@atleti/ui'
+import { toast } from 'sonner'
+import { kyivParts, formatKyiv, kyivInputToUtc } from '@/lib/tz'
+import { sessionsAvailable, sessionsDebt, pluralSessions } from '@/lib/balance'
 
 interface Session {
   _id: string
@@ -54,10 +57,6 @@ function toDateParam(day: Date): string {
   return `${y}-${m}-${d}`
 }
 
-function slotToISO(dateParam: string, slot: string): string {
-  return `${dateParam}T${slot}:00.000Z`
-}
-
 export default function ClientCalendar() {
   const now = new Date()
   const today = new Date(now.getFullYear(), now.getMonth(), now.getDate())
@@ -67,6 +66,7 @@ export default function ClientCalendar() {
   const [sessions, setSessions] = useState<Session[]>([])
   const [selectedDay, setSelectedDay] = useState<Date | null>(null)
   const [cancelling, setCancelling] = useState<string | null>(null)
+  const [confirmCancelId, setConfirmCancelId] = useState<string | null>(null)
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(true)
 
@@ -78,7 +78,9 @@ export default function ClientCalendar() {
   const [booking, setBooking] = useState(false)
   const [bookingError, setBookingError] = useState('')
 
-  const [sessionsRemaining, setSessionsRemaining] = useState<number | null>(null)
+  interface BalanceInfo { total: number; used: number; reserved: number; available: number; debt: number }
+  const [balanceInfo, setBalanceInfo] = useState<BalanceInfo | null>(null)
+  const sessionsRemaining = balanceInfo?.available ?? null
 
   const loadSessions = useCallback(async () => {
     try {
@@ -98,7 +100,17 @@ export default function ClientCalendar() {
       const res = await fetch('/api/client/balance')
       if (!res.ok) return
       const data = await res.json()
-      setSessionsRemaining(data.balance?.sessionsRemaining ?? 0)
+      const b = data.balance
+      if (!b) { setBalanceInfo(null); return }
+      setBalanceInfo({
+        total: b.sessionsTotal ?? 0,
+        used: b.sessionsUsed ?? 0,
+        reserved: b.sessionsReserved ?? 0,
+        available: b.sessionsAvailable ?? sessionsAvailable(
+          { sessionsTotal: b.sessionsTotal ?? 0, sessionsUsed: b.sessionsUsed ?? 0 }, b.sessionsReserved ?? 0
+        ),
+        debt: b.sessionsDebt ?? sessionsDebt({ sessionsTotal: b.sessionsTotal ?? 0, sessionsUsed: b.sessionsUsed ?? 0 }),
+      })
     } catch {
       // баланс необов'язковий для відображення
     }
@@ -163,7 +175,8 @@ export default function ClientCalendar() {
     setBookingError('')
     try {
       const dateParam = toDateParam(selectedDay)
-      const scheduledAt = slotToISO(dateParam, selectedSlot)
+      // київський настінний час слоту → справжній UTC
+      const scheduledAt = kyivInputToUtc(dateParam, selectedSlot).toISOString()
       const res = await fetch('/api/client/sessions', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -185,45 +198,44 @@ export default function ClientCalendar() {
     }
   }
 
+  // фільтр/матчинг занять — за київською календарною датою
   const monthSessions = sessions.filter(s => {
-    const d = new Date(s.scheduledAt)
-    return d.getFullYear() === year && d.getMonth() === month
+    const p = kyivParts(new Date(s.scheduledAt))
+    return p.year === year && p.month - 1 === month
   })
 
   const grid = getMonthGrid(year, month)
 
-  const daysWithSessions = new Set(
-    monthSessions.map(s => {
-      const d = new Date(s.scheduledAt)
-      return `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`
-    })
-  )
+  const kyivDayKey = (date: Date) => { const p = kyivParts(date); return `${p.year}-${p.month - 1}-${p.day}` }
+  const isSameKyivDay = (date: Date, gridDay: Date) => {
+    const p = kyivParts(date)
+    return p.year === gridDay.getFullYear() && p.month - 1 === gridDay.getMonth() && p.day === gridDay.getDate()
+  }
+
+  const daysWithSessions = new Set(monthSessions.map(s => kyivDayKey(new Date(s.scheduledAt))))
 
   const dayKey = (d: Date) => `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`
 
   const selectedDaySessions = selectedDay
-    ? monthSessions.filter(s => isSameDay(new Date(s.scheduledAt), selectedDay))
+    ? monthSessions.filter(s => isSameKyivDay(new Date(s.scheduledAt), selectedDay))
     : []
 
   async function handleCancel(sessionId: string) {
     setCancelling(sessionId)
-    const res = await fetch(`/api/client/sessions/${sessionId}`, {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({}),
-    })
+    const res = await fetch(`/api/client/sessions/${sessionId}`, { method: 'DELETE' })
     setCancelling(null)
+    setConfirmCancelId(null)
     if (res.ok) {
-      await loadSessions()
-      if (selectedDay) await loadSlots(selectedDay)
+      toast.success('Заняття скасовано')
+      await Promise.all([loadSessions(), loadBalance(), ...(selectedDay ? [loadSlots(selectedDay)] : [])])
     } else if (res.status === 403) {
-      alert('Термін скасування минув')
+      toast.error('Термін скасування минув')
     } else {
-      alert('Помилка при скасуванні заняття')
+      toast.error('Помилка при скасуванні заняття')
     }
   }
 
-  if (loading) return <div className="pt-4"><p className="text-sm text-gray-400">Завантаження...</p></div>
+  if (loading) return <CenteredSpinner />
 
   const hasBalance = sessionsRemaining !== null && sessionsRemaining > 0
 
@@ -231,15 +243,33 @@ export default function ClientCalendar() {
     <div className="space-y-4 pt-4">
       {error && <p className="text-sm text-red-500 text-center py-2">{error}</p>}
 
-      {sessionsRemaining !== null && (
-        <div className="flex items-center justify-end">
-          <span className="text-xs text-gray-500">
-            Залишок занять:{' '}
-            <span className={`font-semibold ${sessionsRemaining === 0 ? 'text-red-500' : 'text-gray-900'}`}>
-              {sessionsRemaining}
-            </span>
-          </span>
-        </div>
+      {balanceInfo && (
+        <GlassCard className="py-3">
+          <div className="grid grid-cols-4 gap-2 text-center">
+            <div>
+              <p className={`text-xl font-semibold ${balanceInfo.available === 0 ? 'text-red-500' : 'text-gray-900'}`}>{balanceInfo.available}</p>
+              <p className="text-[11px] text-gray-500 mt-0.5">Доступно</p>
+            </div>
+            <div>
+              <p className="text-xl font-semibold text-amber-600">{balanceInfo.reserved}</p>
+              <p className="text-[11px] text-gray-500 mt-0.5">Заплановано</p>
+            </div>
+            <div>
+              <p className="text-xl font-semibold text-gray-900">{balanceInfo.used}</p>
+              <p className="text-[11px] text-gray-500 mt-0.5">Проведено</p>
+            </div>
+            <div>
+              <p className="text-xl font-semibold text-gray-400">{balanceInfo.total}</p>
+              <p className="text-[11px] text-gray-500 mt-0.5">Всього</p>
+            </div>
+          </div>
+          {balanceInfo.debt > 0 && (
+            <p className="mt-3 rounded-md bg-red-50 px-3 py-2 text-xs text-red-700">
+              Заборговано: {balanceInfo.debt} {pluralSessions(balanceInfo.debt)}. Проведених занять більше,
+              ніж оплачених — поповніть баланс, щоб бронювати далі.
+            </p>
+          )}
+        </GlassCard>
       )}
 
       <div className="flex items-center justify-between">
@@ -252,8 +282,8 @@ export default function ClientCalendar() {
         </button>
       </div>
 
-      <div className="lg:flex lg:gap-4">
-        <div className="lg:flex-1">
+      <div className="space-y-4">
+        <div>
           <GlassCard className="p-2">
             <div className="grid grid-cols-7 mb-2">
               {DAYS_UA.map(d => (
@@ -292,7 +322,7 @@ export default function ClientCalendar() {
         </div>
 
         {selectedDay && (
-          <div className="lg:w-80 mt-4 lg:mt-0 space-y-3">
+          <div className="mt-4 space-y-3">
             <div className="flex items-center justify-between">
               <h2 className="text-sm font-semibold text-gray-900">
                 {selectedDay.toLocaleDateString('uk-UA', { day: 'numeric', month: 'long' })}
@@ -317,12 +347,12 @@ export default function ClientCalendar() {
                         <Badge variant={variant}>{label}</Badge>
                       </div>
                       <p className="text-xs text-gray-500">
-                        {scheduledDate.toLocaleTimeString('uk-UA', { hour: '2-digit', minute: '2-digit', timeZone: 'UTC' })}
+                        {formatKyiv(scheduledDate, { hour: '2-digit', minute: '2-digit' })}
                         {' · '}{s.duration} хв
                       </p>
                       {s.status === 'scheduled' && isFuture && (
                         <button
-                          onClick={() => handleCancel(s._id)}
+                          onClick={() => setConfirmCancelId(s._id)}
                           disabled={cancelling === s._id}
                           className="text-xs text-red-500 hover:text-red-700 underline disabled:opacity-50"
                         >
@@ -340,7 +370,7 @@ export default function ClientCalendar() {
               <p className="text-xs font-medium text-gray-500 mb-2">Вільні слоти</p>
               {slotsLoading ? (
                 <GlassCard>
-                  <p className="text-sm text-gray-400 text-center py-3">Завантаження...</p>
+                  <div className="flex justify-center py-3"><Spinner size={22} /></div>
                 </GlassCard>
               ) : slotsError ? (
                 <GlassCard>
@@ -397,13 +427,9 @@ export default function ClientCalendar() {
                       {bookingError && (
                         <p className="text-xs text-red-500">{bookingError}</p>
                       )}
-                      <button
-                        onClick={handleBook}
-                        disabled={booking}
-                        className="w-full py-2 text-sm font-medium rounded-md bg-gray-900 text-white hover:bg-gray-700 disabled:opacity-50 transition-colors"
-                      >
+                      <Button onClick={handleBook} loading={booking} fullWidth size="lg">
                         {booking ? 'Бронювання...' : 'Забронювати'}
-                      </button>
+                      </Button>
                     </GlassCard>
                   )}
                 </div>
@@ -412,6 +438,18 @@ export default function ClientCalendar() {
           </div>
         )}
       </div>
+
+      <ConfirmDialog
+        open={confirmCancelId !== null}
+        title="Скасувати заняття?"
+        message="Ви дійсно хочете скасувати це заняття? Його буде видалено з розкладу."
+        confirmLabel="Скасувати заняття"
+        cancelLabel="Назад"
+        danger
+        loading={cancelling !== null}
+        onConfirm={() => confirmCancelId && handleCancel(confirmCancelId)}
+        onClose={() => setConfirmCancelId(null)}
+      />
     </div>
   )
 }

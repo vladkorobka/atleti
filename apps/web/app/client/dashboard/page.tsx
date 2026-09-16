@@ -3,9 +3,12 @@ import { redirect } from 'next/navigation'
 import { ensureDB } from '@/lib/db'
 import { ClientCoach, Balance, Session } from '@atleti/db'
 import type { AtletiSession } from '@atleti/types'
-import { GlassCard, Badge } from '@atleti/ui'
+import { GlassCard, Badge, WalletIcon, UserIcon } from '@atleti/ui'
 import Link from 'next/link'
 import { AcceptInviteButton } from '../coach/AcceptInviteButton'
+import { settlePastSessions } from '@/lib/settle-sessions'
+import { formatKyiv } from '@/lib/tz'
+import { sessionsAvailable, sessionsDebt, pluralSessions } from '@/lib/balance'
 
 const sessionTypeLabel: Record<string, string> = {
   regular: 'Тренування',
@@ -15,14 +18,15 @@ const sessionTypeLabel: Record<string, string> = {
 }
 
 function formatDate(date: Date): string {
-  return new Date(date).toLocaleDateString('uk-UA', {
+  return formatKyiv(date, {
     day: 'numeric',
     month: 'short',
     hour: '2-digit',
     minute: '2-digit',
-    timeZone: 'UTC', // заняття зберігаються як UTC wall-clock
   })
 }
+
+export const metadata = { title: 'Головна' }
 
 export default async function ClientDashboard() {
   const session = await auth()
@@ -30,6 +34,7 @@ export default async function ClientDashboard() {
   if (!user || user.role !== 'client') redirect('/login')
 
   await ensureDB()
+  await settlePastSessions({ clientId: user.userId })
 
   const relationship = await ClientCoach.findOne({
     clientId: user.userId,
@@ -42,17 +47,22 @@ export default async function ClientDashboard() {
 
   let balance = null
   let nextSession = null
+  let reserved = 0
 
   if (status === 'active' && relationship) {
     const coachId = (relationship.coachId as unknown as { _id?: string })._id ?? relationship.coachId
-    ;[balance, nextSession] = await Promise.all([
+    ;[balance, nextSession, reserved] = await Promise.all([
       Balance.findOne({ clientId: user.userId, coachId }),
       Session.findOne({
         clientId: user.userId,
         status: 'scheduled',
       }).sort({ scheduledAt: 1 }),
+      Session.countDocuments({ clientId: user.userId, coachId, status: 'scheduled' }),
     ])
   }
+
+  const available = balance ? sessionsAvailable(balance, reserved) : 0
+  const debt = balance ? sessionsDebt(balance) : 0
 
   return (
     <div className="space-y-4 pt-4">
@@ -85,11 +95,20 @@ export default async function ClientDashboard() {
         <>
           {balance ? (
             <GlassCard>
-              <p className="text-sm text-gray-500 mb-1">Залишилось занять</p>
-              <p className="text-3xl font-semibold text-gray-900">
-                {balance.sessionsTotal - balance.sessionsUsed}
+              <p className="text-sm text-gray-500 mb-1">Доступно для бронювання</p>
+              <p className={`text-3xl font-semibold ${available === 0 ? 'text-red-500' : 'text-gray-900'}`}>
+                {available}
                 <span className="text-base font-normal text-gray-400"> / {balance.sessionsTotal}</span>
               </p>
+              <p className="text-xs text-gray-500 mt-2">
+                Заплановано: <span className="font-medium text-amber-600">{reserved}</span>
+                {'  ·  '}Проведено: <span className="font-medium text-gray-700">{balance.sessionsUsed}</span>
+              </p>
+              {debt > 0 && (
+                <p className="mt-2 rounded-md bg-red-50 px-3 py-2 text-xs text-red-700">
+                  Заборговано: {debt} {pluralSessions(debt)} — поповніть баланс, щоб бронювати далі.
+                </p>
+              )}
             </GlassCard>
           ) : (
             <GlassCard>
@@ -118,14 +137,16 @@ export default async function ClientDashboard() {
           <div className="grid grid-cols-2 gap-3">
             <Link
               href="/client/balance"
-              className="bg-gray-900 text-white rounded-md px-4 py-2 text-sm font-medium text-center hover:bg-gray-800 transition-colors"
+              className="flex items-center justify-center gap-1.5 bg-gray-900 text-white rounded-md px-4 py-2.5 text-sm font-medium text-center shadow-sm hover:bg-gray-800 transition-colors"
             >
+              <WalletIcon className="h-4 w-4" />
               Баланс
             </Link>
             <Link
               href="/client/coach"
-              className="bg-white/60 backdrop-blur-sm border border-white/40 text-gray-900 rounded-md px-4 py-2 text-sm font-medium text-center hover:bg-white/80 transition-colors"
+              className="flex items-center justify-center gap-1.5 bg-white/60 backdrop-blur-sm border border-white/40 text-gray-900 rounded-md px-4 py-2.5 text-sm font-medium text-center shadow-sm hover:bg-white/80 transition-colors"
             >
+              <UserIcon className="h-4 w-4" />
               Тренер
             </Link>
           </div>

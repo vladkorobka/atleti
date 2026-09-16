@@ -1,0 +1,43 @@
+<h2>Де налаштовується робочий графік?</h2>
+<p class="subtitle">Шаблон: пн-нд, час початку/кінця, тривалість слоту</p>
+
+<div class="options">
+  <div class="option" data-choice="a" onclick="toggleSelect(this)">
+    <div class="letter">A</div>
+    <div class="content">
+      <h3>Прямо у вкладці Calendar</h3>
+      <p>Кнопка "Налаштувати графік" у верхній частині Calendar. Відкриває панель/модалку зі списком днів тижня та часовими полями.</p>
+      <div class="mockup" style="margin-top:8px">
+        <div class="mockup-header">Calendar</div>
+        <div class="mockup-body" style="font-size:12px">
+          <div style="display:flex;gap:6px;margin-bottom:8px">
+            <button class="mock-button" style="font-size:11px">⚙️ Робочий графік</button>
+            <button class="mock-button" style="font-size:11px">+ Додати заняття</button>
+          </div>
+          <div style="background:#f5f5f5;border-radius:6px;padding:8px">
+            <div style="font-size:11px;color:#666;margin-bottom:4px">Пн — Пт: 09:00 – 18:00 · 60 хв</div>
+            <div style="font-size:11px;color:#999">Сб — Нд: не працює</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="option" data-choice="b" onclick="toggleSelect(this)">
+    <div class="letter">B</div>
+    <div class="content">
+      <h3>У вкладці Settings (профіль тренера)</h3>
+      <p>Робочий графік — частина профілю тренера. Налаштовується у Settings, а Calendar лише показує і дозволяє блокувати конкретні дні/слоти.</p>
+      <div class="mockup" style="margin-top:8px">
+        <div class="mockup-header">Settings → Розклад</div>
+        <div class="mockup-body" style="font-size:12px">
+          <div style="font-size:11px;color:#666;margin-bottom:6px">Робочі години</div>
+          <div style="display:grid;grid-template-columns:40px 1fr 1fr 60px;gap:4px;font-size:11px">
+            <span>Пн</span><input class="mock-input" style="font-size:10px" value="09:00"><input class="mock-input" style="font-size:10px" value="18:00"><span>60 хв</span>
+            <span>Вт</span><input class="mock-input" style="font-size:10px" value="09:00"><input class="mock-input" style="font-size:10px" value="18:00"><span>60 хв</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>

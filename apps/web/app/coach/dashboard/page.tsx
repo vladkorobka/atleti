@@ -5,6 +5,8 @@ import { ClientCoach, Session } from '@atleti/db'
 import type { AtletiSession } from '@atleti/types'
 import { GlassCard } from '@atleti/ui'
 import Link from 'next/link'
+import { settlePastSessions } from '@/lib/settle-sessions'
+import { formatKyiv } from '@/lib/tz'
 
 const sessionTypeLabel: Record<string, string> = {
   regular: 'Тренування',
@@ -14,14 +16,15 @@ const sessionTypeLabel: Record<string, string> = {
 }
 
 function formatDate(date: Date): string {
-  return new Date(date).toLocaleDateString('uk-UA', {
+  return formatKyiv(date, {
     day: 'numeric',
     month: 'short',
     hour: '2-digit',
     minute: '2-digit',
-    timeZone: 'UTC', // заняття зберігаються як UTC wall-clock
   })
 }
+
+export const metadata = { title: 'Головна' }
 
 export default async function CoachDashboard() {
   const session = await auth()
@@ -29,6 +32,7 @@ export default async function CoachDashboard() {
   if (!user || user.role !== 'coach') redirect('/login')
 
   await ensureDB()
+  await settlePastSessions({ coachId: user.userId })
 
   const now = new Date()
   const monthStart = new Date(now.getFullYear(), now.getMonth(), 1)
@@ -91,17 +95,18 @@ export default async function CoachDashboard() {
         </GlassCard>
       </div>
 
-      <div className="grid grid-cols-2 gap-3">
-        <Link href="/coach/clients">
-          <GlassCard className="text-center py-4 cursor-pointer hover:bg-white/70 transition-colors">
-            <p className="text-sm font-medium text-gray-700">Запросити клієнта</p>
-          </GlassCard>
-        </Link>
-        <Link href="/coach/calendar">
-          <GlassCard className="text-center py-4 cursor-pointer hover:bg-white/70 transition-colors">
-            <p className="text-sm font-medium text-gray-700">Переглянути календар</p>
-          </GlassCard>
-        </Link>
+      <div className="grid grid-cols-3 gap-2">
+        {[
+          { href: '/coach/clients', label: 'Запросити клієнта' },
+          { href: '/coach/calendar', label: 'Переглянути календар' },
+          { href: '/coach/profile', label: 'Налаштування' },
+        ].map(({ href, label }) => (
+          <Link key={href} href={href} className="block h-full">
+            <GlassCard className="h-full min-h-[4rem] flex items-center justify-center text-center px-2 py-3 cursor-pointer hover:bg-white/70 transition-colors">
+              <span className="text-xs sm:text-sm font-medium text-gray-700 leading-tight break-words">{label}</span>
+            </GlassCard>
+          </Link>
+        ))}
       </div>
 
       <div>

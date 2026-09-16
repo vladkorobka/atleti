@@ -3,11 +3,10 @@ import { auth } from '@/lib/auth'
 import { ensureDB } from '@/lib/db'
 import { Session, ClientCoach, CoachProfile, Balance } from '@atleti/db'
 import type { AtletiSession } from '@atleti/types'
+import { settlePastSessions } from '@/lib/settle-sessions'
 import { bookingSchema } from '@/lib/validations/client'
 import { generateSlots } from '@/lib/slot-utils'
-
-const DOW_KEYS = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'] as const
-type DowKey = (typeof DOW_KEYS)[number]
+import { slotParts } from '@/lib/coach-schedule'
 
 export async function GET(req: NextRequest) {
   const session = await auth()
@@ -16,6 +15,7 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
   await ensureDB()
+  await settlePastSessions({ clientId: clientSession.userId })
 
   const url = new URL(req.url)
   const status = url.searchParams.get('status')
@@ -47,9 +47,7 @@ export async function POST(req: NextRequest) {
   const { scheduledAt: scheduledAtStr, type } = parsed.data
 
   const scheduledAt = new Date(scheduledAtStr)
-  const now = new Date()
-
-  if (scheduledAt <= now) {
+  if (scheduledAt <= new Date()) {
     return NextResponse.json({ error: 'Cannot book a past slot' }, { status: 400 })
   }
 
@@ -64,70 +62,56 @@ export async function POST(req: NextRequest) {
   }
   const coachId = relationship.coachId
 
-  const dateStr = scheduledAt.toISOString().slice(0, 10)
-  const dowKey = DOW_KEYS[scheduledAt.getUTCDay()] as DowKey
-
-  const coachProfile = await CoachProfile.findOne({ userId: coachId }, 'workingHours')
-  const dayHours = coachProfile?.workingHours?.[dowKey]
-
+  // Слот має співпадати з робочим графіком тренера — усе в київському поясі.
+  const { dowKey, startMin } = slotParts(scheduledAt)
+  const dayHours = (await CoachProfile.findOne({ userId: coachId }, 'workingHours'))?.workingHours?.[dowKey]
   if (!dayHours?.start || !dayHours?.end || !dayHours?.slotDuration) {
     return NextResponse.json({ error: 'Slot not within working hours' }, { status: 400 })
   }
-
-  const slotTime = `${String(scheduledAt.getUTCHours()).padStart(2, '0')}:${String(scheduledAt.getUTCMinutes()).padStart(2, '0')}`
-  const validSlots = generateSlots(dayHours.start, dayHours.end, dayHours.slotDuration)
-
-  if (!validSlots.includes(slotTime)) {
+  const slotTime = `${String(Math.floor(startMin / 60)).padStart(2, '0')}:${String(startMin % 60).padStart(2, '0')}`
+  if (!generateSlots(dayHours.start, dayHours.end, dayHours.slotDuration).includes(slotTime)) {
     return NextResponse.json({ error: 'Slot not within working hours' }, { status: 400 })
   }
 
-  const balance = await Balance.findOne({
+  // Баланс списується при завершенні заняття (settle), а не при бронюванні.
+  // Заплановані заняття рахуються як резерв проти пакета, щоб не перебронювати:
+  // completed (used) + scheduled (reserved) не може перевищити sessionsTotal.
+  const balance = await Balance.findOne({ clientId: clientSession.userId, coachId })
+  const total = balance?.sessionsTotal ?? 0
+  const used = balance?.sessionsUsed ?? 0
+  const reserved = await Session.countDocuments({
     clientId: clientSession.userId,
     coachId,
+    status: 'scheduled',
   })
-  const sessionsRemaining = balance ? balance.sessionsTotal - balance.sessionsUsed : 0
-  if (sessionsRemaining <= 0) {
+  if (used + reserved >= total) {
     return NextResponse.json({ error: 'Insufficient balance' }, { status: 402 })
   }
 
-  const conflict = await Session.findOne({
-    coachId,
-    scheduledAt,
-    status: 'scheduled',
-  })
+  const conflict = await Session.findOne({ coachId, scheduledAt, status: 'scheduled' })
   if (conflict) {
     return NextResponse.json({ error: 'Slot already booked' }, { status: 409 })
   }
 
-  const newSession = await Session.create({
-    clientId: clientSession.userId,
-    coachId,
-    scheduledAt,
-    duration: dayHours.slotDuration,
-    type,
-    status: 'scheduled',
-    createdBy: 'client',
-  })
-
-  const balanceUpdate = await Balance.updateOne(
-    { clientId: clientSession.userId, coachId },
-    {
-      $inc: { sessionsUsed: 1 },
-      $push: {
-        transactions: {
-          type: 'debit',
-          sessions: 1,
-          recordedBy: clientSession.userId,
-          createdAt: new Date(),
-        },
-      },
+  let newSession
+  try {
+    newSession = await Session.create({
+      clientId: clientSession.userId,
+      coachId,
+      scheduledAt,
+      duration: dayHours.slotDuration,
+      type,
+      status: 'scheduled',
+      createdBy: 'client',
+    })
+  } catch (err) {
+    // uniq_coach_client_slot: у клієнта вже є заняття на цей момент. Перевірка вище
+    // дивиться лише на scheduled, а проведене заняття (внесене тренером заднім
+    // числом) слот теж займає.
+    if ((err as { code?: number }).code === 11000) {
+      return NextResponse.json({ error: 'Slot already booked' }, { status: 409 })
     }
-  )
-
-  if (balanceUpdate.modifiedCount === 0) {
-    console.error(`Balance debit failed for client ${clientSession.userId}, session ${newSession._id}`)
-    await Session.deleteOne({ _id: newSession._id })
-    return NextResponse.json({ error: 'Failed to update balance' }, { status: 500 })
+    throw err
   }
 
   return NextResponse.json({ session: newSession }, { status: 201 })

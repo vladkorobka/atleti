@@ -133,3 +133,50 @@ describe('DELETE /api/coach/blocks/[blockId]', () => {
     expect(res.status).toBe(404)
   })
 })
+
+describe('PATCH /api/coach/blocks/[blockId]', () => {
+  async function patch(blockId: string, body: Record<string, unknown>) {
+    const { PATCH } = await import('@/app/api/coach/blocks/[blockId]/route')
+    const req = new Request(`http://localhost/api/coach/blocks/${blockId}`, {
+      method: 'PATCH',
+      body: JSON.stringify(body),
+      headers: { 'Content-Type': 'application/json' },
+    })
+    return PATCH(req as any, { params: { blockId } })
+  }
+
+  it('edits a time block (updates fields)', async () => {
+    const { CoachBlock } = await import('@atleti/db')
+    const block = await CoachBlock.create({ coachId, type: 'time', date: '2026-05-14', startTime: '12:00', endTime: '13:00', label: 'Обід' })
+
+    const res = await patch(block._id.toString(), { type: 'time', date: '2026-05-14', startTime: '14:00', endTime: '15:00', label: 'Перерва' })
+    expect(res.status).toBe(200)
+    const data = await res.json()
+    expect(data.block.startTime).toBe('14:00')
+    expect(data.block.label).toBe('Перерва')
+  })
+
+  it('clears stale fields when switching type (time → day)', async () => {
+    const { CoachBlock } = await import('@atleti/db')
+    const block = await CoachBlock.create({ coachId, type: 'time', date: '2026-05-14', startTime: '12:00', endTime: '13:00' })
+
+    const res = await patch(block._id.toString(), { type: 'day', date: '2026-05-14' })
+    expect(res.status).toBe(200)
+    const updated = await CoachBlock.findById(block._id)
+    expect(updated?.type).toBe('day')
+    expect(updated?.startTime).toBeUndefined()
+    expect(updated?.endTime).toBeUndefined()
+  })
+
+  it('returns 404 for non-existent block', async () => {
+    const res = await patch('000000000000000000000000', { type: 'day', date: '2026-05-14' })
+    expect(res.status).toBe(404)
+  })
+
+  it('rejects invalid payload (time without start/end) → 400', async () => {
+    const { CoachBlock } = await import('@atleti/db')
+    const block = await CoachBlock.create({ coachId, type: 'day', date: '2026-05-14' })
+    const res = await patch(block._id.toString(), { type: 'time', date: '2026-05-14' })
+    expect(res.status).toBe(400)
+  })
+})

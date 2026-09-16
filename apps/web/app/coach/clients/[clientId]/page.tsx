@@ -5,7 +5,14 @@ import { ClientCoach, Balance, Session } from '@atleti/db'
 import type { AtletiSession } from '@atleti/types'
 import { GlassCard, Avatar, Badge } from '@atleti/ui'
 import TopUpButton from './TopUpButton'
+import AnamnesisCard from './AnamnesisCard'
+import RemoveClientButton from './RemoveClientButton'
 import Link from 'next/link'
+import { settlePastSessions } from '@/lib/settle-sessions'
+import { formatKyiv } from '@/lib/tz'
+import { pluralSessions } from '@/lib/balance'
+
+export const metadata = { title: 'Клієнт' }
 
 export default async function ClientDetailPage({ params }: { params: { clientId: string } }) {
   const session = await auth()
@@ -13,6 +20,7 @@ export default async function ClientDetailPage({ params }: { params: { clientId:
   if (!user || user.role !== 'coach') redirect('/login')
 
   await ensureDB()
+  await settlePastSessions({ coachId: user.userId, clientId: params.clientId })
 
   const [relationship, balance, sessions] = await Promise.all([
     ClientCoach.findOne({ clientId: params.clientId, coachId: user.userId })
@@ -47,8 +55,14 @@ export default async function ClientDetailPage({ params }: { params: { clientId:
         <GlassCard>
           <div className="flex items-center justify-between mb-3">
             <div>
-              <p className="text-3xl font-bold text-gray-900">{sessionsRemaining}</p>
-              <p className="text-xs text-gray-500">залишилось занять</p>
+              <p className={`text-3xl font-bold ${sessionsRemaining < 0 ? 'text-red-600' : 'text-gray-900'}`}>
+                {sessionsRemaining}
+              </p>
+              <p className="text-xs text-gray-500">
+                {sessionsRemaining < 0
+                  ? `борг: ${-sessionsRemaining} ${pluralSessions(-sessionsRemaining)}`
+                  : 'залишилось занять'}
+              </p>
             </div>
             <div className="text-right">
               <p className="text-sm text-gray-500">Всього: {balance?.sessionsTotal ?? 0}</p>
@@ -58,6 +72,8 @@ export default async function ClientDetailPage({ params }: { params: { clientId:
           <TopUpButton clientId={params.clientId} />
         </GlassCard>
       </div>
+
+      <AnamnesisCard clientId={params.clientId} initialAnamnesis={relationship.anamnesis ?? ''} />
 
       <div>
         <h2 className="text-base font-semibold text-gray-900 mb-2">Останні заняття</h2>
@@ -69,7 +85,7 @@ export default async function ClientDetailPage({ params }: { params: { clientId:
               <GlassCard key={s._id.toString()} className="flex items-center justify-between">
                 <div>
                   <p className="text-sm font-medium text-gray-900">
-                    {new Date(s.scheduledAt).toLocaleDateString('uk-UA', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit', timeZone: 'UTC' })}
+                    {formatKyiv(s.scheduledAt, { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}
                   </p>
                   <p className="text-xs text-gray-500">{s.duration} хв</p>
                 </div>
@@ -79,6 +95,12 @@ export default async function ClientDetailPage({ params }: { params: { clientId:
           </div>
         )}
       </div>
+
+      {relationship.status === 'active' && (
+        <div className="pt-2">
+          <RemoveClientButton clientId={params.clientId} clientName={client.name} />
+        </div>
+      )}
     </div>
   )
 }

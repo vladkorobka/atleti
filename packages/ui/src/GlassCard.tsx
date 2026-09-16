@@ -11,9 +11,9 @@ export function GlassCard({ children, className = '', onClick }: GlassCardProps)
     <div
       onClick={onClick}
       className={`
-        bg-atleti-surface border border-atleti-line
-        rounded-md shadow-soft p-4
-        ${onClick ? 'cursor-pointer hover:shadow-soft-lg transition-shadow' : ''}
+        bg-white/60 backdrop-blur-sm border border-white/40
+        rounded-md shadow-sm p-4
+        ${onClick ? 'cursor-pointer hover:bg-white/70 transition-colors' : ''}
         ${className}
       `}
     >

@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 import { auth } from '@/lib/auth'
 import { ensureDB } from '@/lib/db'
-import { ClientCoach, Balance } from '@atleti/db'
+import { ClientCoach, Balance, Session } from '@atleti/db'
 import type { AtletiSession } from '@atleti/types'
 
 export async function PATCH() {
@@ -46,7 +46,8 @@ export async function DELETE() {
     return NextResponse.json({ error: 'No active coach relationship' }, { status: 404 })
   }
 
-  // Terminate + reset balance atomically
+  // Terminate + reset balance + прибрати заплановані/скасовані заняття з обох розкладів.
+  // Проведені (completed) лишаємо як історію.
   await Promise.all([
     ClientCoach.updateOne(
       { _id: relationship._id },
@@ -56,6 +57,11 @@ export async function DELETE() {
       { clientId: clientSession.userId, coachId: relationship.coachId },
       { sessionsTotal: 0, sessionsUsed: 0, transactions: [] }
     ),
+    Session.deleteMany({
+      clientId: clientSession.userId,
+      coachId: relationship.coachId,
+      status: { $in: ['scheduled', 'cancelled'] },
+    }),
   ])
 
   return NextResponse.json({ ok: true })

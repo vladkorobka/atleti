@@ -1,6 +1,6 @@
 'use client'
 import { useState } from 'react'
-import { GlassModal } from '@atleti/ui'
+import { GlassModal, Button, Input } from '@atleti/ui'
 
 interface Props { canInvite: boolean }
 
@@ -33,13 +33,14 @@ export default function InviteButton({ canInvite }: Props) {
 
   return (
     <>
-      <button
+      <Button
         disabled={!canInvite}
         onClick={() => setOpen(true)}
-        className="w-full bg-gray-900 text-white rounded-md py-2.5 text-sm font-medium hover:bg-gray-700 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+        fullWidth
+        size="lg"
       >
         {canInvite ? 'Запросити клієнта' : 'Досягнуто ліміт клієнтів'}
-      </button>
+      </Button>
 
       <GlassModal open={open} onClose={() => setOpen(false)} title="Запросити клієнта">
         {success ? (
@@ -47,21 +48,16 @@ export default function InviteButton({ canInvite }: Props) {
         ) : (
           <form onSubmit={handleInvite} className="space-y-3">
             <p className="text-sm text-gray-500">Введіть нікнейм клієнта (без @)</p>
-            <input
+            <Input
               value={nickname}
               onChange={e => setNickname(e.target.value)}
               placeholder="nickname"
               required
-              className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-400"
             />
             {error && <p className="text-xs text-red-500">{error}</p>}
-            <button
-              type="submit"
-              disabled={loading}
-              className="w-full bg-gray-900 text-white rounded-md py-2.5 text-sm font-medium hover:bg-gray-700 transition-colors disabled:opacity-50"
-            >
+            <Button type="submit" loading={loading} fullWidth size="lg">
               {loading ? 'Надсилання...' : 'Надіслати запрошення'}
-            </button>
+            </Button>
           </form>
         )}
       </GlassModal>

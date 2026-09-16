@@ -1,7 +1,6 @@
 import type { ICoachBlock, DowKey, IWorkingHoursDay } from '@atleti/types'
 import { parseMinutes, isDayBlocked, timeBlockConflict } from './slot-utils'
-
-const DOW_KEYS = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'] as const
+import { kyivSlotParts } from './tz'
 
 export interface ScheduleCheckResult {
   ok: boolean
@@ -33,11 +32,6 @@ export function checkWithinSchedule(
   return { ok: true }
 }
 
-// Дата (YYYY-MM-DD), день тижня і хвилини від початку доби — усе з UTC wall-clock.
-export function utcSlotParts(d: Date): { date: string; dowKey: DowKey; startMin: number } {
-  const pad = (n: number) => String(n).padStart(2, '0')
-  const date = `${d.getUTCFullYear()}-${pad(d.getUTCMonth() + 1)}-${pad(d.getUTCDate())}`
-  const dowKey = DOW_KEYS[d.getUTCDay()] as DowKey
-  const startMin = d.getUTCHours() * 60 + d.getUTCMinutes()
-  return { date, dowKey, startMin }
-}
+// Дата (YYYY-MM-DD), день тижня і хвилини від початку доби — у київському поясі.
+// (Заняття зберігаються як справжній UTC, тож настінний час беремо через kyivSlotParts.)
+export const slotParts = kyivSlotParts

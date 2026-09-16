@@ -3,7 +3,7 @@ export type UserRole = 'coach' | 'client'
 export type SessionType = 'regular' | 'split' | 'online' | 'consultation'
 export type SessionStatus = 'scheduled' | 'completed' | 'cancelled'
 export type ClientCoachStatus = 'pending' | 'active' | 'rejected' | 'terminated'
-export type TransactionType = 'topup' | 'debit'
+export type TransactionType = 'topup' | 'debit' | 'refund'
 export type ContentType = 'video' | 'file'
 export type AttachmentType = 'video' | 'file' | 'image'
 export type CoachPlan = 'free' | 'pro'
@@ -44,6 +44,7 @@ export interface IClientCoach {
   status: ClientCoachStatus
   invitedAt: Date
   acceptedAt?: Date
+  anamnesis?: string
 }
 
 export interface ITransaction {
@@ -109,6 +110,16 @@ export interface IContent {
 }
 
 // NextAuth session extension
+export interface IPendingUser {
+  email: string
+  name: string
+  role: UserRole
+  nickname: string
+  passwordHash: string
+  tokenHash: string
+  expiresAt: string
+}
+
 export interface AtletiSession {
   userId: string
   role: UserRole
@@ -116,6 +127,7 @@ export interface AtletiSession {
   name: string
   email: string
   avatar?: string
+  emailVerified?: boolean
 }
 
 export type DowKey = 'sun' | 'mon' | 'tue' | 'wed' | 'thu' | 'fri' | 'sat'

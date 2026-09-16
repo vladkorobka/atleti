@@ -14,6 +14,30 @@
 - Стиль: Apple / Liquid Glass, blur-sm/blur-lg, rounded-md
 - Mobile First — завжди починає з мобільного вигляду
 - Компоненти йдуть в `packages/ui`
+- **Завжди дотримується канону дизайн-системи нижче** і повторно використовує наявні примітиви замість «сирих» класів
+
+### Дизайн-система (канон — застосовувати завжди)
+Стиль усього застосунку — **Apple / Liquid Glass**, mobile-first (<768px основний таргет). Нові екрани й рефактори мають бути візуально консистентні з цим каноном.
+
+**Переносні примітиви (`packages/ui`) — використовувати їх, не дублювати класами:**
+- `Button` — варіанти `primary | secondary | danger | ghost`, розміри `sm | md | lg`; пропси `loading` (вбудований Spinner потрібного тону), `fullWidth`, `leftIcon` / `rightIcon`; default `type="button"` (для форм явно `type="submit"`).
+- `Input` — скляне поле (`bg-white/70 backdrop-blur-sm shadow-sm`), `forwardRef`, опційні `label`, `error`, `leftIcon`.
+- `Select`, `Toggle` (тумблер), `DatePicker`, `TimePicker` — усі попапи через `Popover` (портал у body, viewport-aware, не випадають за екран).
+- `GlassCard`, `GlassModal` (портал + lock body scroll), `ConfirmDialog` (підтвердження деструктивних дій).
+- `SectionHeader`, `Spinner` / `CenteredSpinner`, `Skeleton`.
+- `icons.tsx` — **чисті stroke-SVG іконки** в стилі SF (вага 1.8, заокруглені кінці). **Емодзі як іконки заборонені.**
+- Логотип — компонент `@/components/Logo` (асет у `public/`, текстовий фолбек).
+
+**Кольори / патерни:**
+- Primary CTA: `bg-gray-900 text-white` + `shadow-sm`, `font-semibold`.
+- Secondary: скляна поверхня `bg-white/60 backdrop-blur-sm border-white/40`.
+- Danger: `bg-red-500` (hover `bg-red-600`).
+- Ghost: прозорий, hover `bg-white/70`.
+- Радіуси `rounded-md`; subtle тіні; фокус-кільце `ring-gray-400/60`.
+- Поля вводу — скляні `bg-white/70 backdrop-blur-sm`.
+- Модалки: непрозора панель `bg-white`, оверлей `bg-black/40 backdrop-blur-sm`, рендер через портал, блокування скролу фону.
+- Текст UI — **українською**; зміст і логіку (onClick/href/пропси/disabled/валідація/API) при рефакторі **не змінювати** — лише візуал, адитивно.
+- Selection-toggle стани (вибір ролі/типу/слотів) і навігацію (bottom/top nav) лишати як є, якщо не просять інакше.
 
 ## Тестувальник
 **Відповідальність:** Vitest unit/integration, Playwright E2E, edge cases.

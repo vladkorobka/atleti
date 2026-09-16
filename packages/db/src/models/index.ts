@@ -1,8 +1,9 @@
 import mongoose, { type Model } from 'mongoose'
 import type {
-  IUser, ICoachProfile, IClientCoach, IBalance, ISession, IMessage, IContent, ICoachBlock,
+  IUser, ICoachProfile, IClientCoach, IBalance, ISession, IMessage, IContent, ICoachBlock, IPendingUser,
 } from '@atleti/types'
 import { UserSchema } from '../schemas/user.schema'
+import { PendingUserSchema } from '../schemas/pending-user.schema'
 import { CoachProfileSchema } from '../schemas/coach-profile.schema'
 import { ClientCoachSchema } from '../schemas/client-coach.schema'
 import { BalanceSchema } from '../schemas/balance.schema'
@@ -22,3 +23,4 @@ export const Session = (mongoose.models.Session ?? mongoose.model('Session', Ses
 export const Message = (mongoose.models.Message ?? mongoose.model('Message', MessageSchema)) as unknown as Model<IMessage>
 export const Content = (mongoose.models.Content ?? mongoose.model('Content', ContentSchema)) as unknown as Model<IContent>
 export const CoachBlock = (mongoose.models.CoachBlock ?? mongoose.model('CoachBlock', CoachBlockSchema)) as unknown as Model<ICoachBlock>
+export const PendingUser = (mongoose.models.PendingUser ?? mongoose.model('PendingUser', PendingUserSchema)) as unknown as Model<IPendingUser>
