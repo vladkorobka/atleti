@@ -1,7 +1,7 @@
 import { auth } from '@/lib/auth'
 import { redirect } from 'next/navigation'
 import { ensureDB } from '@/lib/db'
-import { ClientCoach, Session } from '@atleti/db'
+import { ClientCoach, CoachProfile, Session } from '@atleti/db'
 import type { AtletiSession } from '@atleti/types'
 import { GlassCard } from '@atleti/ui'
 import Link from 'next/link'
@@ -38,7 +38,7 @@ export default async function CoachDashboard() {
   const monthStart = new Date(now.getFullYear(), now.getMonth(), 1)
   const monthEnd = new Date(now.getFullYear(), now.getMonth() + 1, 1)
 
-  const [relationships, monthlySessions, upcomingSessions] = await Promise.all([
+  const [relationships, monthlySessions, upcomingSessions, profile] = await Promise.all([
     ClientCoach.find({ coachId: user.userId }).populate('clientId', 'name nickname'),
     Session.countDocuments({
       coachId: user.userId,
@@ -53,12 +53,13 @@ export default async function CoachDashboard() {
       .populate('clientId', 'name')
       .sort({ scheduledAt: 1 })
       .limit(3),
+    CoachProfile.findOne({ userId: user.userId }),
   ])
 
   const activeClients = relationships.filter(r => r.status === 'active').length
   const pendingInvites = relationships.filter(r => r.status === 'pending').length
   const nextSession = upcomingSessions[0]
-  const clientLimit = 10
+  const clientLimit = profile?.clientLimit ?? 10
 
   return (
     <div className="space-y-6 pt-4">
