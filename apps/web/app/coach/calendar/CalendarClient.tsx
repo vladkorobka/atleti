@@ -1,7 +1,7 @@
 'use client'
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { useRouter } from 'next/navigation'
-import { GlassCard, GlassModal, Badge, DatePicker, TimePicker, CenteredSpinner, Toggle, Select, ConfirmDialog, Button, Input, BanIcon } from '@atleti/ui'
+import { GlassCard, GlassModal, DatePicker, TimePicker, CenteredSpinner, Toggle, Select, ConfirmDialog, Button, Input, BanIcon, DumbbellIcon, UsersIcon, VideoIcon, ChatIcon } from '@atleti/ui'
 import { toast } from 'sonner'
 import { generateSlots, isDayBlocked, getSlotBlock, isBlockExpired } from '@/lib/slot-utils'
 import { kyivInputToUtc, kyivParts, kyivDateInput } from '@/lib/tz'
@@ -29,18 +29,21 @@ const SESSION_TYPES = [
   { value: 'consultation', label: 'Консультація' },
 ]
 
-// Кольоровий лейбл типу заняття (спліт виділяється фіолетовим)
-const SESSION_TYPE_BADGE: Record<string, { label: string; cls: string }> = {
-  regular: { label: 'Тренування', cls: 'bg-blue-100 text-blue-700' },
-  split: { label: 'Спліт', cls: 'bg-purple-100 text-purple-700' },
-  online: { label: 'Онлайн', cls: 'bg-teal-100 text-teal-700' },
-  consultation: { label: 'Консультація', cls: 'bg-amber-100 text-amber-700' },
+// Тип заняття в агенді дня — кольорова іконка замість текстового бейджа, щоб на вузькому
+// екрані лишалось місце для імені клієнта. Назва типу — в title/aria-label.
+const SESSION_TYPE_BADGE: Record<string, { label: string; cls: string; Icon: (p: { className?: string }) => JSX.Element }> = {
+  regular: { label: 'Тренування', cls: 'bg-blue-100 text-blue-700', Icon: DumbbellIcon },
+  split: { label: 'Спліт', cls: 'bg-purple-100 text-purple-700', Icon: UsersIcon },
+  online: { label: 'Онлайн', cls: 'bg-teal-100 text-teal-700', Icon: VideoIcon },
+  consultation: { label: 'Консультація', cls: 'bg-rose-100 text-rose-700', Icon: ChatIcon },
 }
 
-const STATUS_LABELS: Record<string, { label: string; variant: 'default' | 'success' | 'warning' | 'danger' }> = {
-  scheduled: { label: 'Заплановано', variant: 'warning' },
-  completed: { label: 'Проведено', variant: 'success' },
-  cancelled: { label: 'Скасовано', variant: 'danger' },
+// Статус — крапка, що відрізняється формою, а не лише кольором (дальтонізм, сонце):
+// заплановане — порожнє кільце, проведене — зелена крапка, скасоване — червона + закреслене ім'я.
+const STATUS_LABELS: Record<string, { label: string; dot: string }> = {
+  scheduled: { label: 'Заплановано', dot: 'border-2 border-amber-500' },
+  completed: { label: 'Проведено', dot: 'bg-green-600' },
+  cancelled: { label: 'Скасовано', dot: 'bg-red-500' },
 }
 
 const DAYS_UA = ['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Нд']
@@ -744,6 +747,17 @@ export default function CalendarClient({ clients }: { clients: Client[] }) {
                 Закрити
               </button>
             </div>
+            {/* title на тачі не показується — тому розшифровка статусів видима */}
+            {timeline.some(r => r.slotSessions.length > 0) && (
+              <div className="mb-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-[10px] text-gray-500">
+                {Object.values(STATUS_LABELS).map(s => (
+                  <span key={s.label} className="flex items-center gap-1">
+                    <span className={`h-2 w-2 rounded-full ${s.dot}`} aria-hidden="true" />
+                    {s.label}
+                  </span>
+                ))}
+              </div>
+            )}
 
             {timeline.length === 0 ? (
               <GlassCard>
@@ -782,12 +796,26 @@ export default function CalendarClient({ clients }: { clients: Client[] }) {
                             <p className="text-[10px] font-medium text-purple-600">Спліт · {slotSessions.length} клієнти</p>
                           )}
                           {slotSessions.map(session => {
-                            const tb = SESSION_TYPE_BADGE[session.type] ?? { label: session.type, cls: 'bg-gray-100 text-gray-600' }
+                            const tb = SESSION_TYPE_BADGE[session.type]
+                            const st = STATUS_LABELS[session.status]
                             return (
                               <div key={session._id} className="flex items-center justify-between gap-2">
                                 <div className="flex items-center gap-1.5 min-w-0">
-                                  <span className={`shrink-0 rounded px-1.5 py-0.5 text-[10px] font-medium ${tb.cls}`}>{tb.label}</span>
-                                  <span className="text-xs text-gray-700 truncate">
+                                  <span
+                                    role="img"
+                                    aria-label={tb?.label ?? session.type}
+                                    title={tb?.label ?? session.type}
+                                    className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-md ${tb?.cls ?? 'bg-gray-100 text-gray-600'}`}
+                                  >
+                                    {tb ? <tb.Icon className="h-3.5 w-3.5" /> : <span className="text-[10px] font-medium">?</span>}
+                                  </span>
+                                  <span
+                                    role="img"
+                                    aria-label={st?.label ?? session.status}
+                                    title={st?.label ?? session.status}
+                                    className={`h-2 w-2 shrink-0 rounded-full ${st?.dot ?? 'bg-gray-400'}`}
+                                  />
+                                  <span className={`text-xs truncate ${session.status === 'cancelled' ? 'text-gray-400 line-through' : 'text-gray-700'}`}>
                                     {typeof session.clientId === 'object' ? session.clientId.name : '—'}
                                   </span>
                                 </div>
@@ -800,9 +828,6 @@ export default function CalendarClient({ clients }: { clients: Client[] }) {
                                   <button onClick={() => { setError(''); setStatusModal(session) }} className="text-xs text-gray-400 hover:text-gray-600 underline">
                                     статус
                                   </button>
-                                  <Badge variant={STATUS_LABELS[session.status]?.variant ?? 'default'}>
-                                    {STATUS_LABELS[session.status]?.label ?? session.status}
-                                  </Badge>
                                 </div>
                               </div>
                             )

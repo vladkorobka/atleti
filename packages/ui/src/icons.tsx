@@ -124,3 +124,22 @@ export const ChevronRightIcon = (p: IconProps) => (
     <path d="m9 6 6 6-6 6" />
   </Svg>
 )
+
+export const DumbbellIcon = (p: IconProps) => (
+  <Svg {...p}>
+    <path d="M7 6.5v11M17 6.5v11M3 9v6M21 9v6M7 12h10" />
+  </Svg>
+)
+
+export const VideoIcon = (p: IconProps) => (
+  <Svg {...p}>
+    <rect x="3" y="6" width="12" height="12" rx="2" />
+    <path d="m15 10 6-3v10l-6-3z" />
+  </Svg>
+)
+
+export const ChatIcon = (p: IconProps) => (
+  <Svg {...p}>
+    <path d="M21 12a8 8 0 0 1-11.6 7.1L4 20l1-4.6A8 8 0 1 1 21 12z" />
+  </Svg>
+)

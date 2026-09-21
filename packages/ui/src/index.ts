@@ -30,4 +30,7 @@ export {
   CheckIcon,
   MailIcon,
   ChevronRightIcon,
+  DumbbellIcon,
+  VideoIcon,
+  ChatIcon,
 } from './icons'
