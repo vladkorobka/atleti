@@ -1,7 +1,7 @@
 'use client'
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { useRouter } from 'next/navigation'
-import { GlassCard, GlassModal, DatePicker, TimePicker, CenteredSpinner, Toggle, Select, ConfirmDialog, Button, Input, BanIcon, DumbbellIcon, UsersIcon, VideoIcon, ChatIcon } from '@atleti/ui'
+import { GlassCard, GlassModal, DatePicker, TimePicker, CenteredSpinner, Toggle, Select, ConfirmDialog, Button, Input, BanIcon, PlusIcon, DumbbellIcon, UsersIcon, VideoIcon, ChatIcon } from '@atleti/ui'
 import { toast } from 'sonner'
 import { generateSlots, isDayBlocked, getSlotBlock, isBlockExpired } from '@/lib/slot-utils'
 import { kyivInputToUtc, kyivParts, kyivDateInput } from '@/lib/tz'
@@ -768,11 +768,13 @@ export default function CalendarClient({ clients }: { clients: Client[] }) {
                 {timeline.map(({ slot, slotSessions, block, offSchedule }) => (
                   <GlassCard key={slot} className="py-2 px-3">
                     <div className="flex items-start justify-between gap-2">
-                      <span className="shrink-0 pt-1 text-xs font-mono text-gray-500">{slot}</span>
+                      <span className="shrink-0 pt-0.5 text-xs font-mono text-gray-500">{slot}</span>
                       {block ? (
                         <div className="flex items-center gap-1 flex-1 min-w-0">
-                          <span className="flex min-w-0 items-center gap-1 text-xs text-red-500 truncate">
-                            <BanIcon className="h-3.5 w-3.5 shrink-0" />
+                          <span className="flex min-w-0 items-center gap-1.5 text-xs text-red-500 truncate">
+                            <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-md bg-red-100 text-red-500" aria-hidden="true">
+                              <BanIcon className="h-3.5 w-3.5" />
+                            </span>
                             <span className="truncate">{block.label ?? 'Заблоковано'}
                             {block.recurring && <span className="ml-1 text-gray-400">(recurring)</span>}</span>
                           </span>
@@ -838,11 +840,18 @@ export default function CalendarClient({ clients }: { clients: Client[] }) {
                           type="button"
                           onClick={() => openAddForSlot(slot)}
                           disabled={clients.length === 0}
-                          className={`flex-1 pt-1 text-left text-xs disabled:cursor-not-allowed disabled:text-gray-300 ${
-                            selectedDayIsPast ? 'text-gray-500 hover:text-gray-700' : 'text-green-600 hover:text-green-700'
+                          aria-label={selectedDayIsPast ? undefined : `${slot} — вільно, запланувати`}
+                          title={selectedDayIsPast ? undefined : 'Вільно — запланувати'}
+                          className={`group -my-2 flex-1 py-2 text-left text-xs disabled:cursor-not-allowed disabled:text-gray-300 ${
+                            selectedDayIsPast ? 'leading-5 text-gray-500 hover:text-gray-700' : ''
                           }`}
                         >
-                          {selectedDayIsPast ? '+ Записати проведене' : '+ Вільно — запланувати'}
+                          {selectedDayIsPast ? '+ Записати проведене' : (
+                            // Весь рядок лишається кнопкою — іконка лише візуальна, щоб тап-зона була широкою.
+                            <span className="flex h-5 w-5 items-center justify-center rounded-md bg-gray-100 text-gray-700 group-hover:bg-gray-200 group-disabled:bg-gray-100 group-disabled:text-gray-300" aria-hidden="true">
+                              <PlusIcon className="h-3.5 w-3.5" />
+                            </span>
+                          )}
                         </button>
                       )}
                     </div>
