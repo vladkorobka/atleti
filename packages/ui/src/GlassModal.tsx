@@ -50,7 +50,9 @@ export function GlassModal({ open, onClose, title, children }: GlassModalProps) 
   return createPortal(
     <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-4">
       <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={onClose} />
-      <div className="relative w-full max-w-md bg-white border border-gray-200 rounded-md shadow-xl p-6">
+      {/* Висоту обмежуємо екраном: інакше на мобільному верх високої модалки йде за viewport,
+          а фон заблоковано — дістатися до нього неможливо. dvh враховує панелі iOS Safari. */}
+      <div className="relative w-full max-w-md max-h-[calc(100vh-2rem)] supports-[height:100dvh]:max-h-[calc(100dvh-2rem)] overflow-y-auto overscroll-contain bg-white border border-gray-200 rounded-md shadow-xl p-6">
         {title && <h2 className="text-lg font-semibold mb-4">{title}</h2>}
         {children}
       </div>

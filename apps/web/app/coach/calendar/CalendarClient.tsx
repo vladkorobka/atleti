@@ -876,29 +876,32 @@ export default function CalendarClient({ clients }: { clients: Client[] }) {
       >
         {/* Список наявних блоків — перегляд / редагування / видалення */}
         {activeBlocks.length > 0 && (
-          <div className="mb-3 space-y-1">
-            <p className="text-xs font-medium text-gray-500">Заблоковані час/дні</p>
-            {activeBlocks.map(b => (
-              <div
-                key={b._id}
-                className={`flex items-center justify-between gap-2 rounded-md border px-2 py-1.5 text-xs ${
-                  editingBlockId === b._id ? 'border-gray-900 bg-gray-50' : 'border-gray-200'
-                }`}
-              >
-                <span className="flex min-w-0 items-center gap-1.5 truncate text-gray-700">
-                  <BanIcon className="h-3.5 w-3.5 shrink-0 text-gray-400" />
-                  <span className="truncate">{blockSummary(b)}{b.label ? ` — ${b.label}` : ''}</span>
-                </span>
-                <div className="flex shrink-0 items-center gap-2">
-                  <button type="button" onClick={() => openEditBlock(b)} className="text-gray-400 hover:text-gray-700 underline">ред.</button>
-                  <button type="button" onClick={() => handleDeleteBlock(b._id)} className="text-gray-400 hover:text-red-500" title="Видалити" aria-label="Видалити">
-                    <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-                      <path d="M6 6l12 12M18 6L6 18" />
-                    </svg>
-                  </button>
+          <div className="mb-3">
+            <p className="mb-1 text-xs font-medium text-gray-500">Заблоковані час/дні</p>
+            {/* Фіксована висота (~4,5 рядка): форма лишається видимою, а обрізаний рядок підказує, що список прокручується. */}
+            <div className="max-h-40 space-y-1 overflow-y-auto">
+              {activeBlocks.map(b => (
+                <div
+                  key={b._id}
+                  className={`flex items-center justify-between gap-2 rounded-md border px-2 py-1.5 text-xs ${
+                    editingBlockId === b._id ? 'border-gray-900 bg-gray-50' : 'border-gray-200'
+                  }`}
+                >
+                  <span className="flex min-w-0 items-center gap-1.5 truncate text-gray-700">
+                    <BanIcon className="h-3.5 w-3.5 shrink-0 text-gray-400" />
+                    <span className="truncate">{blockSummary(b)}{b.label ? ` — ${b.label}` : ''}</span>
+                  </span>
+                  <div className="flex shrink-0 items-center gap-2">
+                    <button type="button" onClick={() => openEditBlock(b)} className="text-gray-400 hover:text-gray-700 underline">ред.</button>
+                    <button type="button" onClick={() => handleDeleteBlock(b._id)} className="text-gray-400 hover:text-red-500" title="Видалити" aria-label="Видалити">
+                      <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                        <path d="M6 6l12 12M18 6L6 18" />
+                      </svg>
+                    </button>
+                  </div>
                 </div>
-              </div>
-            ))}
+              ))}
+            </div>
           </div>
         )}
 
