@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { generateSlots, isDayBlocked, getBlockedSlots, getSlotBlock, timeBlockConflict, getTimeBlocksForDate } from '../../lib/slot-utils'
+import { generateSlots, isDayBlocked, getBlockedSlots, getSlotBlock, timeBlockConflict, getTimeBlocksForDate, isBlockExpired } from '../../lib/slot-utils'
 import type { ICoachBlock } from '@atleti/types'
 
 describe('generateSlots', () => {
@@ -131,5 +131,43 @@ describe('getTimeBlocksForDate', () => {
     ]
     const result = getTimeBlocksForDate(blocks, '2026-05-14', 'thu')
     expect(result.map(b => b._id)).toEqual(['1'])
+  })
+})
+
+describe('isBlockExpired', () => {
+  // 21.09.2026 19:00 за Києвом (UTC+3)
+  const now = new Date('2026-09-21T16:00:00Z')
+  const b = (x: Partial<ICoachBlock>): ICoachBlock => ({ _id: '1', coachId: 'c', type: 'time', ...x })
+
+  it('one-time time block on a past date is expired', () => {
+    expect(isBlockExpired(b({ date: '2026-09-20', startTime: '13:00', endTime: '14:00' }), now)).toBe(true)
+  })
+
+  it('today time block: expired only after endTime (Kyiv time)', () => {
+    expect(isBlockExpired(b({ date: '2026-09-21', startTime: '13:00', endTime: '14:00' }), now)).toBe(true)
+    expect(isBlockExpired(b({ date: '2026-09-21', startTime: '18:00', endTime: '19:00' }), now)).toBe(true)
+    expect(isBlockExpired(b({ date: '2026-09-21', startTime: '18:00', endTime: '20:00' }), now)).toBe(false)
+  })
+
+  it('day block today is not expired, yesterday is', () => {
+    expect(isBlockExpired(b({ type: 'day', date: '2026-09-21' }), now)).toBe(false)
+    expect(isBlockExpired(b({ type: 'day', date: '2026-09-20' }), now)).toBe(true)
+  })
+
+  it('vacation expires after dateTo', () => {
+    expect(isBlockExpired(b({ type: 'vacation', dateFrom: '2026-09-01', dateTo: '2026-09-21' }), now)).toBe(false)
+    expect(isBlockExpired(b({ type: 'vacation', dateFrom: '2026-09-01', dateTo: '2026-09-20' }), now)).toBe(true)
+  })
+
+  it('recurring expires only after until; without until never', () => {
+    expect(isBlockExpired(b({ startTime: '12:00', endTime: '13:00', recurring: { type: 'daily' } }), now)).toBe(false)
+    expect(isBlockExpired(b({ startTime: '19:00', endTime: '20:00', recurring: { type: 'daily', until: '2026-09-21' } }), now)).toBe(false)
+    expect(isBlockExpired(b({ startTime: '12:00', endTime: '13:00', recurring: { type: 'daily', until: '2026-09-21' } }), now)).toBe(true)
+    expect(isBlockExpired(b({ type: 'day', recurring: { type: 'weekly', dayOfWeek: 'mon', until: '2026-09-21' } }), now)).toBe(false)
+    expect(isBlockExpired(b({ startTime: '12:00', endTime: '13:00', recurring: { type: 'daily', until: '2026-09-20' } }), now)).toBe(true)
+  })
+
+  it('future block is not expired', () => {
+    expect(isBlockExpired(b({ date: '2026-09-22', startTime: '09:00', endTime: '10:00' }), now)).toBe(false)
   })
 })

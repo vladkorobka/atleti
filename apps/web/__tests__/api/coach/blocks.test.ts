@@ -110,6 +110,18 @@ describe('GET /api/coach/blocks', () => {
     const data = await res.json()
     expect(data.blocks.some((b: any) => b.recurring?.type === 'daily')).toBe(true)
   })
+  it('includes recurring blocks whose until is within or after the month, excludes ended earlier', async () => {
+    const { CoachBlock } = await import('@atleti/db')
+    await CoachBlock.create({ coachId, type: 'day', label: 'ended', recurring: { type: 'weekly', dayOfWeek: 'sun', until: '2026-04-30' } })
+    await CoachBlock.create({ coachId, type: 'day', label: 'mid', recurring: { type: 'weekly', dayOfWeek: 'sun', until: '2026-05-10' } })
+    await CoachBlock.create({ coachId, type: 'day', label: 'edge', recurring: { type: 'weekly', dayOfWeek: 'sun', until: '2026-05-01' } })
+    await CoachBlock.create({ coachId, type: 'day', label: 'open', recurring: { type: 'weekly', dayOfWeek: 'sun' } })
+
+    const { GET } = await import('@/app/api/coach/blocks/route')
+    const res = await GET(new Request('http://localhost/api/coach/blocks?month=2026-05') as any)
+    const data = await res.json()
+    expect(data.blocks.map((b: any) => b.label).sort()).toEqual(['edge', 'mid', 'open'])
+  })
 })
 
 describe('DELETE /api/coach/blocks/[blockId]', () => {

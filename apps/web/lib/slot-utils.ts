@@ -1,4 +1,5 @@
 import type { ICoachBlock, DowKey } from '@atleti/types'
+import { kyivDateInput, kyivParts } from './tz'
 
 export function parseMinutes(time: string): number {
   const [h, m] = time.split(':').map(Number)
@@ -33,6 +34,18 @@ function blockAppliesToDate(block: ICoachBlock, date: string, dowKey: DowKey): b
   if (block.recurring.until && date > block.recurring.until) return false
   if (block.recurring.type === 'daily') return true
   return block.recurring.type === 'weekly' && block.recurring.dayOfWeek === dowKey
+}
+
+// Блок уже ніколи не спрацює. Дати/час блоків — київський настінний час.
+export function isBlockExpired(block: ICoachBlock, now: Date): boolean {
+  const today = kyivDateInput(now)
+  if (block.type === 'vacation' && !block.recurring) return !!block.dateTo && block.dateTo < today
+  const lastDate = block.recurring ? block.recurring.until : block.date
+  if (!lastDate) return false
+  if (lastDate !== today) return lastDate < today
+  if (block.type !== 'time' || !block.endTime) return false
+  const p = kyivParts(now)
+  return parseMinutes(block.endTime) <= p.hour * 60 + p.minute
 }
 
 export function isDayBlocked(blocks: ICoachBlock[], date: string, dowKey: DowKey): boolean {

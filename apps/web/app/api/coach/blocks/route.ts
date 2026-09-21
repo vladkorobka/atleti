@@ -30,7 +30,8 @@ export async function GET(req: NextRequest) {
     $or: [
       { date: { $gte: monthStart, $lte: monthEnd } },
       { type: 'vacation', dateFrom: { $lte: monthEnd }, dateTo: { $gte: monthStart } },
-      { recurring: { $exists: true } },
+      { recurring: { $exists: true }, 'recurring.until': null },
+      { 'recurring.until': { $gte: monthStart } },
     ],
   })
 

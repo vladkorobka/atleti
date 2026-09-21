@@ -3,7 +3,7 @@ import { useState, useEffect, useCallback, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import { GlassCard, GlassModal, Badge, DatePicker, TimePicker, CenteredSpinner, Toggle, Select, ConfirmDialog, Button, Input, BanIcon } from '@atleti/ui'
 import { toast } from 'sonner'
-import { generateSlots, isDayBlocked, getSlotBlock } from '@/lib/slot-utils'
+import { generateSlots, isDayBlocked, getSlotBlock, isBlockExpired } from '@/lib/slot-utils'
 import { kyivInputToUtc, kyivParts, kyivDateInput } from '@/lib/tz'
 import { MAX_BACKDATE_DAYS } from '@/lib/session-conflict'
 import type { ICoachBlock, DowKey, IWorkingHoursDay } from '@atleti/types'
@@ -214,8 +214,8 @@ export default function CalendarClient({ clients }: { clients: Client[] }) {
   }, [])
 
   useEffect(() => {
-    if (addOpen) setNowMs(Date.now())
-  }, [addOpen])
+    if (addOpen || blockOpen) setNowMs(Date.now())
+  }, [addOpen, blockOpen])
 
   function prevMonth() {
     if (month === 0) { setYear(y => y - 1); setMonth(11) } else setMonth(m => m - 1)
@@ -635,6 +635,9 @@ export default function CalendarClient({ clients }: { clients: Client[] }) {
     return { maxTime: h.maxTime && h.maxTime > nowTime ? h.maxTime : nowTime }
   })()
   const selectedDayIsPast = selectedDay ? dateStr(selectedDay) < kyivDateInput(new Date(nowMs)) : false
+  // Сітка й далі бачить усі блоки місяця; зі списку в модалці прибираємо ті, що вже минули.
+  // Блок, що саме редагується, лишаємо, навіть якщо він минув при відкритій формі.
+  const activeBlocks = blocks.filter(b => b._id === editingBlockId || !isBlockExpired(b, new Date(nowMs)))
 
   return (
     <div className="space-y-4 pt-4">
@@ -872,10 +875,10 @@ export default function CalendarClient({ clients }: { clients: Client[] }) {
         title={editingBlockId ? 'Редагувати блок' : 'Заблокувати час'}
       >
         {/* Список наявних блоків — перегляд / редагування / видалення */}
-        {blocks.length > 0 && (
+        {activeBlocks.length > 0 && (
           <div className="mb-3 space-y-1">
             <p className="text-xs font-medium text-gray-500">Заблоковані час/дні</p>
-            {blocks.map(b => (
+            {activeBlocks.map(b => (
               <div
                 key={b._id}
                 className={`flex items-center justify-between gap-2 rounded-md border px-2 py-1.5 text-xs ${
