@@ -32,7 +32,7 @@ packages/
   db/           — Mongoose schemas
   ui/           — Glass UI компоненти
   types/        — shared TypeScript types
-  api-client/   — fetch-хелпери
+  core/         — чиста доменна логіка: таймзона, слоти, графік, баланс, zod-схеми
 ```
 
 ## Ролі
