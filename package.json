@@ -6,7 +6,8 @@
     "build": "turbo build",
     "test": "turbo test",
     "lint": "turbo lint",
-    "typecheck": "turbo typecheck"
+    "typecheck": "turbo typecheck",
+    "backup": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/backup-db.ps1"
   },
   "devDependencies": {
     "turbo": "^2.0.0",
