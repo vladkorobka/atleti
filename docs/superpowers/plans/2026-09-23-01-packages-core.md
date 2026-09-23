@@ -47,9 +47,11 @@
 
 **Видаляються після перенесення:** ті самі вісім модулів з `apps/web/lib` і шість тестів з `apps/web/__tests__/lib/`.
 
-**Лишаються в `apps/web/lib`:** `auth.ts`, `auth.config.ts`, `db.ts`, `email.ts`, `email-templates.ts`, `settle-sessions.ts`, `coach-utils.ts`, `middleware-utils.ts` — усі торкаються БД, пошти або сесії.
+**Лишаються в `apps/web/lib`:** `auth.ts`, `auth.config.ts`, `db.ts`, `email.ts`, `email-templates.ts`, `settle-sessions.ts` — торкаються БД, пошти або сесії. `coach-utils.ts` і `middleware-utils.ts` лишаються з іншої причини: критерій перенесення — не просто «чистий», а «чистий І потрібен мобільному».
 
-> `coach-utils.ts` чистий, але його імпортують лише два серверні роути, а не UI. Мобільному додатку він не потрібен, тож за YAGNI лишається на місці.
+> `coach-utils.ts` чистий (імпортує лише тип з `@atleti/types`), але це серверна авторизаційна перевірка (`canInviteClient`) плюс рядок для відображення (`getClientLimitMessage`), який API вже віддає готовим — мобільному додатку рахувати це самому не потрібно.
+>
+> `middleware-utils.ts` чистий (нічого не імпортує), але хардкодить веб-шляхи (`/coach`, `/client`, `/login`) — в Expo Router такої маршрутизації немає, переносити нема куди.
 
 ---
 
@@ -738,7 +740,7 @@ git commit -m "test(core): зафіксувати межу пакета й он�
 
 План виконано, коли всі п'ять задач закриті й одночасно справджується:
 
-1. `pnpm test` зелений — 26 тестових файлів, шість із них тепер у `packages/core`.
+1. `pnpm test` зелений — 27 тестових файлів, сім із них тепер у `packages/core`.
 2. `pnpm typecheck` і `pnpm build` без помилок.
 3. `pnpm --filter @atleti/web test:e2e` — чотири специфікації проходять.
 4. `pnpm --filter @atleti/core typecheck` проходить окремо від вебу.

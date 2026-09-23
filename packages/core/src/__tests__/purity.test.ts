@@ -5,7 +5,11 @@ import { fileURLToPath } from 'url'
 
 // Vitest виконує тести як ESM, де __dirname не існує — шлях беремо з import.meta.
 const SRC = join(dirname(fileURLToPath(import.meta.url)), '..')
-const FORBIDDEN = ['mongoose', '@atleti/db', 'next', 'react', 'bcryptjs', 'next-auth']
+
+// Дозволені залежності пакета. Усе інше — порушення межі, навіть якщо
+// сьогодні воно виглядає нешкідливо: packages/core має збиратися під Metro,
+// де немає ні Node-вбудованих модулів, ні DOM.
+const ALLOWED = ['zod', '@atleti/types']
 
 function collectSourceFiles(dir: string): string[] {
   return readdirSync(dir).flatMap(entry => {
@@ -13,50 +17,72 @@ function collectSourceFiles(dir: string): string[] {
     if (statSync(full).isDirectory()) {
       return entry === '__tests__' ? [] : collectSourceFiles(full)
     }
-    return full.endsWith('.ts') ? [full] : []
+    return /\.tsx?$/.test(full) ? [full] : []
   })
 }
 
-// Проста перевірка через source.includes(`from '${dep}'`) ловить лише голий
-// специфікатор і пропускає підшляхи (`next/server`, `@atleti/db/models/User`
-// тощо), динамічний import() і require(). Матчер вимагає межу одразу після
-// специфікатора — підшлях (`/...`) або закривальну лапку — щоб `next` ловив
-// `next/server`, але не `nextish-lib`, і `./next` не ловився хибно.
-function importsForbidden(source: string, dep: string): boolean {
-  const spec = dep.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
-  return new RegExp(`(from|import|require)\\s*\\(?\\s*['"]${spec}(/[^'"]*)?['"]`).test(source)
+// Витягує зовнішні специфікатори з усіх трьох форм: from, import(), require().
+// Відносні шляхи (./, ../) пропускаються — вони всередині пакета й безпечні.
+// Для scoped-пакета (@atleti/db/models/User) межа дозволу — перші два
+// сегменти (@atleti/db), решта підшляху не має значення.
+function externalSpecifiers(source: string): string[] {
+  const found: string[] = []
+  const re = /(?:from|import|require)\s*\(?\s*['"]([^'"]+)['"]/g
+  let m: RegExpExecArray | null
+  while ((m = re.exec(source)) !== null) {
+    const spec = m[1]
+    if (spec.startsWith('./') || spec.startsWith('../')) continue
+    const pkg = spec.startsWith('@') ? spec.split('/').slice(0, 2).join('/') : spec.split('/')[0]
+    if (!ALLOWED.includes(pkg)) found.push(spec)
+  }
+  return found
 }
 
-describe('importsForbidden — матчер специфікатора', () => {
-  const cases: Array<[string, string, boolean]> = [
-    ["import { NextRequest } from 'next/server'", 'next', true],
-    ['import mongoose from "mongoose"', 'mongoose', true],
-    ["const m = require('mongoose')", 'mongoose', true],
-    ["await import('next/navigation')", 'next', true],
-    ["import 'next-auth/react'", 'next-auth', true],
-    ["import { User } from '@atleti/db/models/User'", '@atleti/db', true],
-    ["import x from 'nextish-lib'", 'next', false],
-    ["import y from './next'", 'next', false],
-    ["import z from 'reactive-forms'", 'react', false],
+describe('externalSpecifiers — розпізнавання специфікаторів поза межею', () => {
+  const violating: string[] = [
+    "import { NextRequest } from 'next/server'",
+    "import mongoose from 'mongoose'",
+    "import { randomUUID } from 'crypto'",
+    "import { randomUUID } from 'node:crypto'",
+    "import { readFileSync } from 'fs'",
+    "import jwt from 'jsonwebtoken'",
+    "const { MongoClient } = require('mongodb')",
+    "import { User } from '@atleti/db/models/User'",
+    "import { GlassCard } from '@atleti/ui'",
+    "import { Platform } from 'react-native'",
+    "import React from 'react'",
+    "import bcrypt from 'bcryptjs'",
   ]
 
-  for (const [source, dep, expected] of cases) {
-    it(`${expected ? 'ловить' : 'не ловить'}: ${source} (dep=${dep})`, () => {
-      expect(importsForbidden(source, dep)).toBe(expected)
+  for (const source of violating) {
+    it(`ловить: ${source}`, () => {
+      expect(externalSpecifiers(source)).not.toEqual([])
+    })
+  }
+
+  const clean: string[] = [
+    "import { z } from 'zod'",
+    "import type { User } from '@atleti/types'",
+    "import { formatTz } from './tz'",
+    "import { checkOverlap } from '../slot-utils'",
+    "import { clientSchema } from './validations/client'",
+  ]
+
+  for (const source of clean) {
+    it(`не ловить: ${source}`, () => {
+      expect(externalSpecifiers(source)).toEqual([])
     })
   }
 })
 
 describe('межа пакета', () => {
-  it('жоден модуль не імпортує серверних залежностей', () => {
+  it('жоден модуль не імпортує нічого, крім zod, @atleti/types і відносних шляхів', () => {
     const offenders: string[] = []
 
     for (const file of collectSourceFiles(SRC)) {
       const source = readFileSync(file, 'utf8')
-      for (const dep of FORBIDDEN) {
-        if (importsForbidden(source, dep)) {
-          offenders.push(`${file} → ${dep}`)
-        }
+      for (const spec of externalSpecifiers(source)) {
+        offenders.push(`${file} → ${spec}`)
       }
     }
 

@@ -90,8 +90,11 @@ packages/
 Разом із ними переїжджають шість тестів з `apps/web/__tests__/lib/` і лишаються на Vitest —
 саме вони доводять, що перенесення нічого не зламало.
 
-У `apps/web/lib` лишається все, що торкається БД: `auth`, `db`, `email`, `settle-sessions`,
-`coach-utils`, `middleware-utils`, `email-templates`.
+У `apps/web/lib` лишається `auth`, `db`, `email`, `settle-sessions`, `email-templates` — усі
+торкаються БД, пошти або сесії. `coach-utils` і `middleware-utils` лишаються з іншої причини:
+критерій — не просто «чистий», а «чистий І потрібен мобільному» (`coach-utils` — серверна
+авторизаційна перевірка плюс рядок, який API вже віддає готовим; `middleware-utils` хардкодить
+веб-шляхи, яких немає в Expo Router).
 
 ### `packages/api-client`
 
