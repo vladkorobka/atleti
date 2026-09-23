@@ -3,8 +3,7 @@ import { useState, useEffect, useCallback, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import { GlassCard, GlassModal, DatePicker, TimePicker, CenteredSpinner, Toggle, Select, ConfirmDialog, Button, Input, BanIcon, PlusIcon, DumbbellIcon, UsersIcon, VideoIcon, ChatIcon } from '@atleti/ui'
 import { toast } from 'sonner'
-import { generateSlots, isDayBlocked, getSlotBlock, isBlockExpired, kyivInputToUtc, kyivParts, kyivDateInput } from '@atleti/core'
-import { MAX_BACKDATE_DAYS } from '@/lib/session-conflict'
+import { generateSlots, isDayBlocked, getSlotBlock, isBlockExpired, kyivInputToUtc, kyivParts, kyivDateInput, MAX_BACKDATE_DAYS } from '@atleti/core'
 import type { ICoachBlock, DowKey, IWorkingHoursDay } from '@atleti/types'
 
 // remaining — залишок для планування наперед (мінус резерв заплановані).

@@ -5,8 +5,7 @@ import { Session, ClientCoach, CoachProfile, CoachBlock, Balance } from '@atleti
 import type { AtletiSession, ICoachBlock } from '@atleti/types'
 import { sessionCreateSchema } from '@/lib/validations/coach'
 import { settlePastSessions } from '@/lib/settle-sessions'
-import { hasBlockingConflict, MAX_SESSION_DURATION_MIN, MAX_BACKDATE_DAYS } from '@/lib/session-conflict'
-import { checkWithinSchedule, slotParts } from '@atleti/core'
+import { hasBlockingConflict, MAX_SESSION_DURATION_MIN, MAX_BACKDATE_DAYS, checkWithinSchedule, slotParts } from '@atleti/core'
 
 export async function GET(req: NextRequest) {
   const session = await auth()

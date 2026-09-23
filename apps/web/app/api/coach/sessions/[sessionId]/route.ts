@@ -4,8 +4,7 @@ import { ensureDB } from '@/lib/db'
 import { Session, Balance, CoachProfile, CoachBlock } from '@atleti/db'
 import type { AtletiSession, ICoachBlock } from '@atleti/types'
 import { sessionUpdateSchema, sessionEditSchema } from '@/lib/validations/coach'
-import { hasBlockingConflict, MAX_SESSION_DURATION_MIN } from '@/lib/session-conflict'
-import { checkWithinSchedule, slotParts } from '@atleti/core'
+import { hasBlockingConflict, MAX_SESSION_DURATION_MIN, checkWithinSchedule, slotParts } from '@atleti/core'
 
 type Params = { params: { sessionId: string } }
 

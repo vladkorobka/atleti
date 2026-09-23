@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { intervalsOverlap, hasBlockingConflict } from '../../lib/session-conflict'
+import { intervalsOverlap, hasBlockingConflict } from '../session-conflict'
 
 describe('intervalsOverlap', () => {
   it('стик впритул — не перетин', () => {

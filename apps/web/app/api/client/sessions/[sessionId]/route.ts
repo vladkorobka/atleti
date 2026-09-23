@@ -3,7 +3,7 @@ import { auth } from '@/lib/auth'
 import { ensureDB } from '@/lib/db'
 import { Session, CoachProfile } from '@atleti/db'
 import type { AtletiSession } from '@atleti/types'
-import { canClientCancel } from '@/lib/session-utils'
+import { canClientCancel } from '@atleti/core'
 
 type Params = { params: { sessionId: string } }
 

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { canClientCancel, getSessionStatusLabel } from '../../lib/session-utils'
+import { canClientCancel, getSessionStatusLabel } from '../session-utils'
 
 describe('canClientCancel', () => {
   it('allows cancel when deadline not reached', () => {
