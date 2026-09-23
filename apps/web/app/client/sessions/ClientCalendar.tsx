@@ -2,7 +2,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import { GlassCard, Badge, CenteredSpinner, Spinner, ConfirmDialog, Button } from '@atleti/ui'
 import { toast } from 'sonner'
-import { kyivParts, formatKyiv, kyivInputToUtc } from '@/lib/tz'
+import { kyivParts, formatKyiv, kyivInputToUtc } from '@atleti/core'
 import { sessionsAvailable, sessionsDebt, pluralSessions } from '@/lib/balance'
 
 interface Session {

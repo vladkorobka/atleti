@@ -3,8 +3,7 @@ import { auth } from '@/lib/auth'
 import { ensureDB } from '@/lib/db'
 import { ClientCoach, CoachProfile, Session, CoachBlock } from '@atleti/db'
 import type { AtletiSession, ICoachBlock, DowKey } from '@atleti/types'
-import { generateSlots, isDayBlocked, getBlockedSlots } from '@/lib/slot-utils'
-import { kyivInputToUtc, kyivParts } from '@/lib/tz'
+import { generateSlots, isDayBlocked, getBlockedSlots, kyivInputToUtc, kyivParts } from '@atleti/core'
 
 const DOW_KEYS = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'] as const
 const pad = (n: number) => String(n).padStart(2, '0')

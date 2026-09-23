@@ -6,7 +6,7 @@ import type { AtletiSession } from '@atleti/types'
 import { GlassCard } from '@atleti/ui'
 import Link from 'next/link'
 import { settlePastSessions } from '@/lib/settle-sessions'
-import { formatKyiv } from '@/lib/tz'
+import { formatKyiv } from '@atleti/core'
 
 const sessionTypeLabel: Record<string, string> = {
   regular: 'Тренування',

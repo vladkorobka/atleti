@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { kyivInputToUtc, kyivParts, formatKyiv, kyivDateInput, kyivTimeInput, kyivSlotParts } from '../../lib/tz'
+import { kyivInputToUtc, kyivParts, formatKyiv, kyivDateInput, kyivTimeInput, kyivSlotParts } from '../tz'
 
 describe('kyivInputToUtc', () => {
   it('interprets summer wall-clock as Kyiv (UTC+3)', () => {

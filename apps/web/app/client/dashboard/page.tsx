@@ -7,7 +7,7 @@ import { GlassCard, Badge, WalletIcon, UserIcon } from '@atleti/ui'
 import Link from 'next/link'
 import { AcceptInviteButton } from '../coach/AcceptInviteButton'
 import { settlePastSessions } from '@/lib/settle-sessions'
-import { formatKyiv } from '@/lib/tz'
+import { formatKyiv } from '@atleti/core'
 import { sessionsAvailable, sessionsDebt, pluralSessions } from '@/lib/balance'
 
 const sessionTypeLabel: Record<string, string> = {

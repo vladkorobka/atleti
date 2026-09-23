@@ -5,8 +5,7 @@ import { Session, ClientCoach, CoachProfile, Balance } from '@atleti/db'
 import type { AtletiSession } from '@atleti/types'
 import { settlePastSessions } from '@/lib/settle-sessions'
 import { bookingSchema } from '@/lib/validations/client'
-import { generateSlots } from '@/lib/slot-utils'
-import { slotParts } from '@/lib/coach-schedule'
+import { generateSlots, slotParts } from '@atleti/core'
 
 export async function GET(req: NextRequest) {
   const session = await auth()

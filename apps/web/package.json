@@ -11,6 +11,7 @@
     "test:e2e": "playwright test"
   },
   "dependencies": {
+    "@atleti/core": "workspace:*",
     "@atleti/db": "workspace:*",
     "@atleti/types": "workspace:*",
     "@atleti/ui": "workspace:*",

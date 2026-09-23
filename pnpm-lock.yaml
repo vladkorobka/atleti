@@ -17,6 +17,9 @@ importers:
 
   apps/web:
     dependencies:
+      '@atleti/core':
+        specifier: workspace:*
+        version: link:../../packages/core
       '@atleti/db':
         specifier: workspace:*
         version: link:../../packages/db
@@ -81,6 +84,22 @@ importers:
       tailwindcss:
         specifier: ^3.4.0
         version: 3.4.19
+      typescript:
+        specifier: ^5.4.0
+        version: 5.9.3
+      vitest:
+        specifier: ^1.6.0
+        version: 1.6.1(@types/node@20.19.41)
+
+  packages/core:
+    dependencies:
+      '@atleti/types':
+        specifier: workspace:*
+        version: link:../types
+      zod:
+        specifier: ^4.4.3
+        version: 4.4.3
+    devDependencies:
       typescript:
         specifier: ^5.4.0
         version: 5.9.3

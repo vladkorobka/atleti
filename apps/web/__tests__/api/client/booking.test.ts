@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeAll, afterAll, beforeEach, vi } from 'vitest'
 import mongoose from 'mongoose'
 import { MongoMemoryServer } from 'mongodb-memory-server'
-import { kyivInputToUtc } from '@/lib/tz'
+import { kyivInputToUtc } from '@atleti/core'
 
 let mongod: MongoMemoryServer
 let coachId: string

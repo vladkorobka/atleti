@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { checkWithinSchedule, slotParts } from '../../lib/coach-schedule'
+import { checkWithinSchedule, slotParts } from '../coach-schedule'
 import type { ICoachBlock, IWorkingHoursDay } from '@atleti/types'
 
 const hours: IWorkingHoursDay = { start: '09:00', end: '18:00', slotDuration: 60 }

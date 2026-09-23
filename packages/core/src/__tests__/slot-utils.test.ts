@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { generateSlots, isDayBlocked, getBlockedSlots, getSlotBlock, timeBlockConflict, getTimeBlocksForDate, isBlockExpired } from '../../lib/slot-utils'
+import { generateSlots, isDayBlocked, getBlockedSlots, getSlotBlock, timeBlockConflict, getTimeBlocksForDate, isBlockExpired } from '../slot-utils'
 import type { ICoachBlock } from '@atleti/types'
 
 describe('generateSlots', () => {
