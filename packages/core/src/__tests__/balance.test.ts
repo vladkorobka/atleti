@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { sessionsDebt, sessionsAvailable, pluralSessions } from '@/lib/balance'
+import { sessionsDebt, sessionsAvailable, pluralSessions } from '../balance'
 
 describe('sessionsDebt', () => {
   it('нуль, поки оплачених вистачає', () => {

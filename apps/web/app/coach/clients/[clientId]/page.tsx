@@ -9,8 +9,7 @@ import AnamnesisCard from './AnamnesisCard'
 import RemoveClientButton from './RemoveClientButton'
 import Link from 'next/link'
 import { settlePastSessions } from '@/lib/settle-sessions'
-import { formatKyiv } from '@atleti/core'
-import { pluralSessions } from '@/lib/balance'
+import { formatKyiv, pluralSessions } from '@atleti/core'
 
 export const metadata = { title: 'Клієнт' }
 

@@ -5,7 +5,7 @@ import { ClientCoach, Balance, Session } from '@atleti/db'
 import type { AtletiSession } from '@atleti/types'
 import { GlassCard, Badge } from '@atleti/ui'
 import { settlePastSessions } from '@/lib/settle-sessions'
-import { sessionsAvailable, sessionsDebt, pluralSessions } from '@/lib/balance'
+import { sessionsAvailable, sessionsDebt, pluralSessions } from '@atleti/core'
 
 function formatDate(date: Date): string {
   return new Date(date).toLocaleDateString('uk-UA', {
