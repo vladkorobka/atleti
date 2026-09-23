@@ -4,8 +4,7 @@ import { ensureDB } from '@/lib/db'
 import { Session, ClientCoach, CoachProfile, Balance } from '@atleti/db'
 import type { AtletiSession } from '@atleti/types'
 import { settlePastSessions } from '@/lib/settle-sessions'
-import { bookingSchema } from '@/lib/validations/client'
-import { generateSlots, slotParts } from '@atleti/core'
+import { bookingSchema, generateSlots, slotParts } from '@atleti/core'
 
 export async function GET(req: NextRequest) {
   const session = await auth()

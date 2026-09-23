@@ -3,7 +3,7 @@ import { auth } from '@/lib/auth'
 import { ensureDB } from '@/lib/db'
 import { CoachProfile } from '@atleti/db'
 import type { AtletiSession } from '@atleti/types'
-import { coachProfileSchema } from '@/lib/validations/coach'
+import { coachProfileSchema } from '@atleti/core'
 
 export async function GET() {
   const session = await auth()

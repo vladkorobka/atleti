@@ -3,7 +3,7 @@ import { auth } from '@/lib/auth'
 import { ensureDB } from '@/lib/db'
 import { CoachBlock } from '@atleti/db'
 import type { AtletiSession } from '@atleti/types'
-import { coachBlockSchema } from '@/lib/validations/coach'
+import { coachBlockSchema } from '@atleti/core'
 
 const BLOCK_FIELDS = ['type', 'date', 'startTime', 'endTime', 'dateFrom', 'dateTo', 'label', 'recurring'] as const
 

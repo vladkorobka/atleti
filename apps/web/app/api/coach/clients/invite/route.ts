@@ -4,7 +4,7 @@ import { ensureDB } from '@/lib/db'
 import { User, CoachProfile, ClientCoach } from '@atleti/db'
 import { canInviteClient } from '@/lib/coach-utils'
 import type { AtletiSession } from '@atleti/types'
-import { inviteSchema } from '@/lib/validations/coach'
+import { inviteSchema } from '@atleti/core'
 
 export async function POST(req: NextRequest) {
   const session = await auth()

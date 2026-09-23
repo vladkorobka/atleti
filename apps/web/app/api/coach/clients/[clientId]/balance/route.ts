@@ -3,7 +3,7 @@ import { auth } from '@/lib/auth'
 import { ensureDB } from '@/lib/db'
 import { Balance } from '@atleti/db'
 import type { AtletiSession } from '@atleti/types'
-import { balanceTopupSchema } from '@/lib/validations/coach'
+import { balanceTopupSchema } from '@atleti/core'
 
 type Params = { params: { clientId: string } }
 
