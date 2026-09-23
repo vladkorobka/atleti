@@ -19,6 +19,7 @@
 - Коментарі в перенесених файлах зберігаються як є — вони пояснюють неочевидне WHY.
 - Мова коміт-меседжів — українська, за зразком наявної історії.
 - Не додавати трейлер `Co-Authored-By` до комітів.
+- **Ніколи не запускати `git add -A`, `git add .` чи `git add apps/web`.** У робочому дереві є чужа незакомічена зміна в `apps/web/app/coach/clients/[clientId]/AnamnesisCard.tsx`, яка до цього плану не стосується. Додавати тільки явні шляхи зі списку в кроці коміту. Файл `AnamnesisCard.tsx` не чіпати й не комітити за жодних обставин.
 
 ## Чому тут немає класичного red-green
 
@@ -275,7 +276,17 @@ grep -rn "@/lib/\(tz\|slot-utils\|coach-schedule\)" apps/web --include=*.ts --in
 - [ ] **Крок 11: Коміт**
 
 ```bash
-git add packages/core apps/web package.json pnpm-lock.yaml
+git add packages/core pnpm-lock.yaml apps/web/package.json \
+  apps/web/lib apps/web/__tests__ \
+  "apps/web/app/api/coach/available-slots/route.ts" \
+  "apps/web/app/api/client/sessions/route.ts" \
+  "apps/web/app/api/coach/sessions/route.ts" \
+  "apps/web/app/api/coach/sessions/[sessionId]/route.ts" \
+  "apps/web/app/client/dashboard/page.tsx" \
+  "apps/web/app/client/sessions/ClientCalendar.tsx" \
+  "apps/web/app/coach/calendar/CalendarClient.tsx" \
+  "apps/web/app/coach/clients/[clientId]/page.tsx" \
+  "apps/web/app/coach/dashboard/page.tsx"
 git commit -m "refactor(core): винести таймзону, слоти й робочий графік у @atleti/core
 
 Перший крок до мобільного додатка: ці модулі чисті й потрібні React Native,
@@ -370,7 +381,11 @@ grep -rn "@/lib/session-conflict\|@/lib/session-utils" apps/web --include=*.ts -
 - [ ] **Крок 6: Коміт**
 
 ```bash
-git add packages apps/web
+git add packages/core apps/web/lib apps/web/__tests__ \
+  "apps/web/app/api/coach/sessions/route.ts" \
+  "apps/web/app/api/coach/sessions/[sessionId]/route.ts" \
+  "apps/web/app/api/client/sessions/[sessionId]/route.ts" \
+  "apps/web/app/coach/calendar/CalendarClient.tsx"
 git commit -m "refactor(core): винести накладання занять і статуси в @atleti/core"
 ```
 
@@ -459,7 +474,12 @@ grep -rn "@/lib/balance" apps/web --include=*.ts --include=*.tsx | grep -v node_
 - [ ] **Крок 6: Коміт**
 
 ```bash
-git add packages apps/web
+git add packages/core apps/web/lib apps/web/__tests__ \
+  "apps/web/app/api/client/balance/route.ts" \
+  "apps/web/app/client/balance/page.tsx" \
+  "apps/web/app/client/dashboard/page.tsx" \
+  "apps/web/app/client/sessions/ClientCalendar.tsx" \
+  "apps/web/app/coach/clients/[clientId]/page.tsx"
 git commit -m "refactor(core): винести арифметику балансу в @atleti/core"
 ```
 
@@ -575,7 +595,17 @@ grep -rn "@/lib/validations" apps/web --include=*.ts --include=*.tsx | grep -v n
 - [ ] **Крок 6: Коміт**
 
 ```bash
-git add packages apps/web
+git add packages/core apps/web/lib \
+  "apps/web/app/api/client/sessions/route.ts" \
+  "apps/web/app/api/coach/blocks/route.ts" \
+  "apps/web/app/api/coach/blocks/[blockId]/route.ts" \
+  "apps/web/app/api/coach/clients/invite/route.ts" \
+  "apps/web/app/api/coach/clients/[clientId]/balance/route.ts" \
+  "apps/web/app/api/coach/clients/[clientId]/route.ts" \
+  "apps/web/app/api/coach/profile/route.ts" \
+  "apps/web/app/api/coach/settings/route.ts" \
+  "apps/web/app/api/coach/sessions/route.ts" \
+  "apps/web/app/api/coach/sessions/[sessionId]/route.ts"
 git commit -m "refactor(core): винести zod-схеми в @atleti/core
 
 Мобільний додаток валідуватиме форми тими самими правилами, якими
