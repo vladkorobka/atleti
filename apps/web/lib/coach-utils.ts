@@ -11,6 +11,7 @@ export function canInviteClient({ activeClients, plan, clientLimit }: ClientLimi
   return activeClients < clientLimit
 }
 
-export function getClientLimitMessage(active: number, limit: number): string {
-  return `${active} / ${limit}`
+export function getClientLimitMessage({ activeClients, plan, clientLimit }: ClientLimitCheck): string {
+  if (plan === 'pro') return `${activeClients}`
+  return `${activeClients} / ${clientLimit}`
 }

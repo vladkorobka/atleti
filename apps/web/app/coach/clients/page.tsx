@@ -5,6 +5,7 @@ import { ClientCoach, CoachProfile } from '@atleti/db'
 import type { AtletiSession } from '@atleti/types'
 import { GlassCard, Avatar, Badge } from '@atleti/ui'
 import InviteButton from './InviteButton'
+import { canInviteClient, getClientLimitMessage } from '@/lib/coach-utils'
 import Link from 'next/link'
 
 export const metadata = { title: 'Клієнти' }
@@ -23,9 +24,12 @@ export default async function ClientsPage() {
     CoachProfile.findOne({ userId: user.userId }),
   ])
 
-  const activeCount = relationships.filter((r: any) => r.status === 'active').length
-  const clientLimit = profile?.clientLimit ?? 10
-  const canInvite = activeCount < clientLimit
+  const limitCheck = {
+    activeClients: relationships.filter((r: any) => r.status === 'active').length,
+    plan: profile?.plan ?? 'free',
+    clientLimit: profile?.clientLimit ?? 10,
+  }
+  const canInvite = canInviteClient(limitCheck)
   // Завершені співпраці (terminated) не показуємо — клієнт відмовився або тренер відмовив
   const visibleRelationships = relationships.filter((r: any) => r.status !== 'terminated')
 
@@ -33,7 +37,9 @@ export default async function ClientsPage() {
     <div className="space-y-4 pt-4">
       <div className="flex items-center justify-between">
         <h1 className="text-xl font-semibold text-gray-900">Клієнти</h1>
-        <span className="text-sm text-gray-500">{activeCount} / {clientLimit}</span>
+        <span className="text-sm text-gray-500">
+          {limitCheck.plan === 'pro' ? `Активних: ${limitCheck.activeClients}` : getClientLimitMessage(limitCheck)}
+        </span>
       </div>
 
       <InviteButton canInvite={canInvite} />

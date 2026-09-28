@@ -101,4 +101,25 @@ describe('POST /api/coach/clients/invite', () => {
 
     await CoachProfile.updateOne({ userId: coachId }, { clientLimit: 10 })
   })
+
+  it('allows invite beyond the limit on pro plan', async () => {
+    const { User, ClientCoach, CoachProfile } = await import('@atleti/db')
+    await CoachProfile.updateOne({ userId: coachId }, { plan: 'pro', clientLimit: 1 })
+    const existingClient = await User.create({ email: 'existing@test.com', name: 'Ex', role: 'client', nickname: 'existing1' })
+    await ClientCoach.create({ clientId: existingClient._id, coachId, status: 'active' })
+    await User.create({ email: 'new@test.com', name: 'New', role: 'client', nickname: 'newclient1' })
+
+    try {
+      const { POST } = await import('@/app/api/coach/clients/invite/route')
+      const req = new Request('http://localhost/api/coach/clients/invite', {
+        method: 'POST',
+        body: JSON.stringify({ nickname: 'newclient1' }),
+        headers: { 'Content-Type': 'application/json' },
+      })
+      const res = await POST(req as any)
+      expect(res.status).toBe(201)
+    } finally {
+      await CoachProfile.updateOne({ userId: coachId }, { plan: 'free', clientLimit: 10 })
+    }
+  })
 })

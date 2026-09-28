@@ -19,7 +19,8 @@ export async function GET() {
   ])
 
   const activeCount = relationships.filter(r => r.status === 'active').length
-  const limitMessage = getClientLimitMessage(activeCount, profile?.clientLimit ?? 10)
+  const plan = profile?.plan ?? 'free'
+  const limitMessage = getClientLimitMessage({ activeClients: activeCount, plan, clientLimit: profile?.clientLimit ?? 10 })
 
-  return NextResponse.json({ clients: relationships, limitMessage, plan: profile?.plan ?? 'free' })
+  return NextResponse.json({ clients: relationships, limitMessage, plan })
 }

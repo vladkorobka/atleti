@@ -7,6 +7,7 @@ import { GlassCard } from '@atleti/ui'
 import Link from 'next/link'
 import { settlePastSessions } from '@/lib/settle-sessions'
 import { formatKyiv } from '@/lib/tz'
+import { getClientLimitMessage } from '@/lib/coach-utils'
 
 const sessionTypeLabel: Record<string, string> = {
   regular: 'Тренування',
@@ -59,7 +60,6 @@ export default async function CoachDashboard() {
   const activeClients = relationships.filter(r => r.status === 'active').length
   const pendingInvites = relationships.filter(r => r.status === 'pending').length
   const nextSession = upcomingSessions[0]
-  const clientLimit = profile?.clientLimit ?? 10
 
   return (
     <div className="space-y-6 pt-4">
@@ -74,7 +74,11 @@ export default async function CoachDashboard() {
         <GlassCard>
           <p className="text-xs text-gray-500 mb-1">Клієнти</p>
           <p className="text-2xl font-bold text-gray-900">
-            {activeClients} / {clientLimit}
+            {getClientLimitMessage({
+              activeClients,
+              plan: profile?.plan ?? 'free',
+              clientLimit: profile?.clientLimit ?? 10,
+            })}
           </p>
         </GlassCard>
 

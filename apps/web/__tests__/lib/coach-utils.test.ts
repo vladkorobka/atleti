@@ -16,7 +16,11 @@ describe('canInviteClient', () => {
 })
 
 describe('getClientLimitMessage', () => {
-  it('returns correct usage string', () => {
-    expect(getClientLimitMessage(3, 10)).toBe('3 / 10')
+  it('shows usage against the limit on free plan', () => {
+    expect(getClientLimitMessage({ activeClients: 3, plan: 'free', clientLimit: 10 })).toBe('3 / 10')
+  })
+
+  it('shows only the active count on pro plan', () => {
+    expect(getClientLimitMessage({ activeClients: 25, plan: 'pro', clientLimit: 10 })).toBe('25')
   })
 })
