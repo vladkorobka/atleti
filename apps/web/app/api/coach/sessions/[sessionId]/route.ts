@@ -48,6 +48,24 @@ export async function PUT(req: NextRequest, { params }: Params) {
     update.$unset = { cancelledBy: '', cancelledByRole: '', cancelReason: '' }
   }
 
+  // Повернення в заплановані знову ставить заняття в резерв, а баланс відтоді міг
+  // змінитись в обидва боки. Перераховуємо позначку боргу тим самим правилом, що й POST,
+  // інакше історія показувала б «в борг» оплачене заняття або навпаки.
+  if (status === 'scheduled') {
+    const [balance, reservedOthers] = await Promise.all([
+      Balance.findOne({ clientId: before.clientId, coachId: coachSession.userId }),
+      Session.countDocuments({
+        _id: { $ne: before._id },
+        clientId: before.clientId,
+        coachId: coachSession.userId,
+        status: 'scheduled',
+      }),
+    ])
+    // completed → scheduled нижче поверне одне списання, тож міряємо вже без нього
+    const used = (balance?.sessionsUsed ?? 0) - (before.status === 'completed' ? 1 : 0)
+    ;(update.$set as Record<string, unknown>).onDebt = used + reservedOthers >= (balance?.sessionsTotal ?? 0)
+  }
+
   // Умова по status робить перехід атомарним: між читанням `before` і записом статус
   // міг змінити settlePastSessions (він виконується на кожному читанні дашбордів).
   // Без цього фільтра ми б скоригували баланс за дельтою, якої вже не було, і

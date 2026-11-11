@@ -11,6 +11,10 @@ export const SessionSchema = new Schema({
   cancelledByRole: { type: String, enum: ['coach', 'client'] },
   cancelReason: String,
   createdBy: { type: String, enum: ['coach', 'client'], required: true },
+  // Записане тренером понад оплачений пакет. Знімок на момент запису, а не похідна
+  // від балансу: пізніше поповнення гасить борг, але історія має пам'ятати, що
+  // заняття бронювалось у борг.
+  onDebt: { type: Boolean, default: false },
 })
 
 SessionSchema.index({ coachId: 1, scheduledAt: 1 })

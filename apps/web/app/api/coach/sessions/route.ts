@@ -45,7 +45,7 @@ export async function POST(req: NextRequest) {
   if (!parsed.success) {
     return NextResponse.json({ error: parsed.error.flatten().fieldErrors }, { status: 400 })
   }
-  const { clientId, scheduledAt, duration, type, status } = parsed.data
+  const { clientId, scheduledAt, duration, type, status, allowDebt } = parsed.data
 
   const relationship = await ClientCoach.findOne({
     clientId: parsed.data.clientId,
@@ -79,20 +79,25 @@ export async function POST(req: NextRequest) {
     )
   }
 
-  // Баланс: не плануємо понад оплачений пакет. Заплановані заняття — це резерв
-  // (completed + scheduled не може перевищити sessionsTotal), тож при нульовому
-  // залишку додавати заняття не можна.
-  // Для минулого перевірку не робимо: факт уже стався, баланс може піти в мінус.
-  if (!isPast) {
-    const balance = await Balance.findOne({ clientId, coachId: coachSession.userId })
-    const total = balance?.sessionsTotal ?? 0
-    const used = balance?.sessionsUsed ?? 0
+  // Баланс. Заплановані заняття — це резерв (completed + scheduled проти sessionsTotal).
+  // Майбутнє понад пакет — лише з явною згодою тренера (allowDebt), інакше 402.
+  // Минуле записується завжди: факт уже стався, баланс може піти в мінус.
+  // Клієнтський роут цієї згоди не має: клієнт у борг не записується ніколи, а
+  // боргове заняття сидить у резерві, тож наступне поповнення спершу гасить його.
+  const balance = await Balance.findOne({ clientId, coachId: coachSession.userId })
+  const total = balance?.sessionsTotal ?? 0
+  const used = balance?.sessionsUsed ?? 0
+  let onDebt: boolean
+  if (isPast) {
+    onDebt = used >= total
+  } else {
     const reserved = await Session.countDocuments({
       clientId,
       coachId: coachSession.userId,
       status: 'scheduled',
     })
-    if (used + reserved >= total) {
+    onDebt = used + reserved >= total
+    if (onDebt && !allowDebt) {
       return NextResponse.json(
         { error: 'У клієнта немає вільних занять на балансі. Поповніть баланс, щоб додати заняття.' },
         { status: 402 }
@@ -146,6 +151,7 @@ export async function POST(req: NextRequest) {
       type,
       status: isPast ? 'completed' : 'scheduled',
       createdBy: 'coach',
+      onDebt,
     })
   } catch (err) {
     // Унікальний індекс uniq_coach_client_slot: паралельний запит випередив нас.

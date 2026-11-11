@@ -706,3 +706,161 @@ describe('PUT /api/coach/sessions/[sessionId]', () => {
     expect(bal?.sessionsUsed).toBe(0)
   })
 })
+
+describe('POST /api/coach/sessions — запис у борг', () => {
+  async function postClientBooking(scheduledAt: string) {
+    vi.mocked((await import('@/lib/auth')).auth).mockResolvedValue({
+      user: { email: 'client@test.com', userId: clientId, role: 'client', nickname: 'client1', name: 'Client' }
+    } as any)
+    const { POST } = await import('@/app/api/client/sessions/route')
+    const req = new Request('http://localhost/api/client/sessions', {
+      method: 'POST',
+      body: JSON.stringify({ scheduledAt, type: 'regular' }),
+      headers: { 'Content-Type': 'application/json' },
+    })
+    return POST(req as any)
+  }
+
+  it('нульовий баланс без allowDebt → 402, як і раніше', async () => {
+    const { Balance } = await import('@atleti/db')
+    await Balance.create({ clientId, coachId, sessionsTotal: 2, sessionsUsed: 2, transactions: [] })
+    const res = await postSession({ clientId, scheduledAt: at('10:00'), duration: 60, type: 'regular' })
+    expect(res.status).toBe(402)
+  })
+
+  it('нульовий баланс з allowDebt → 201, заняття позначене onDebt, баланс не списаний наперед', async () => {
+    const { Balance } = await import('@atleti/db')
+    await Balance.create({ clientId, coachId, sessionsTotal: 2, sessionsUsed: 2, transactions: [] })
+    const res = await postSession({ clientId, scheduledAt: at('10:00'), duration: 60, type: 'regular', allowDebt: true })
+    expect(res.status).toBe(201)
+    const data = await res.json()
+    expect(data.session.status).toBe('scheduled')
+    expect(data.session.onDebt).toBe(true)
+    const bal = await Balance.findOne({ clientId, coachId })
+    expect(bal!.sessionsUsed).toBe(2)
+  })
+
+  it('клієнт без документа балансу: allowDebt → 201 і onDebt', async () => {
+    const res = await postSession({ clientId, scheduledAt: at('10:00'), duration: 60, type: 'regular', allowDebt: true })
+    expect(res.status).toBe(201)
+    expect((await res.json()).session.onDebt).toBe(true)
+  })
+
+  it('allowDebt при вільному балансі → onDebt=false (борг не вигадуємо)', async () => {
+    const { Balance } = await import('@atleti/db')
+    await Balance.create({ clientId, coachId, sessionsTotal: 1, sessionsUsed: 0, transactions: [] })
+    const first = await postSession({ clientId, scheduledAt: at('10:00'), duration: 60, type: 'regular', allowDebt: true })
+    expect((await first.json()).session.onDebt).toBe(false)
+    // друге заняття вже за межами пакета (резерв) — воно і є боргове
+    const second = await postSession({ clientId, scheduledAt: at('11:00'), duration: 60, type: 'regular', allowDebt: true })
+    expect(second.status).toBe(201)
+    expect((await second.json()).session.onDebt).toBe(true)
+  })
+
+  it('після настання боргове заняття списується і баланс іде в мінус', async () => {
+    const { Balance, Session } = await import('@atleti/db')
+    const { settlePastSessions } = await import('@/lib/settle-sessions')
+    await Balance.create({ clientId, coachId, sessionsTotal: 2, sessionsUsed: 2, transactions: [] })
+    const res = await postSession({ clientId, scheduledAt: at('10:00'), duration: 60, type: 'regular', allowDebt: true })
+    const { session } = await res.json()
+    // імітуємо настання часу заняття
+    await Session.updateOne({ _id: session._id }, { scheduledAt: new Date(Date.now() - 3600_000) })
+    await settlePastSessions({ coachId })
+    const bal = await Balance.findOne({ clientId, coachId })
+    expect(bal!.sessionsTotal - bal!.sessionsUsed).toBe(-1)
+  })
+
+  it('клієнт НЕ може записатись, поки боргове заняття не покрите поповненням', async () => {
+    const { Balance } = await import('@atleti/db')
+    await Balance.create({ clientId, coachId, sessionsTotal: 2, sessionsUsed: 2, transactions: [] })
+    expect((await postSession({ clientId, scheduledAt: at('10:00'), duration: 60, type: 'regular', allowDebt: true })).status).toBe(201)
+    expect((await postClientBooking(at('12:00'))).status).toBe(402)
+    // поповнення на 1 лише гасить борг — вільних занять досі нуль
+    await Balance.updateOne({ clientId, coachId }, { $inc: { sessionsTotal: 1 } })
+    expect((await postClientBooking(at('12:00'))).status).toBe(402)
+    // ще одне — тепер є вільне
+    await Balance.updateOne({ clientId, coachId }, { $inc: { sessionsTotal: 1 } })
+    expect((await postClientBooking(at('12:00'))).status).toBe(201)
+  })
+
+  it('клієнт не може передати allowDebt у свій роут — поле ігнорується, 402', async () => {
+    const { Balance } = await import('@atleti/db')
+    await Balance.create({ clientId, coachId, sessionsTotal: 0, sessionsUsed: 0, transactions: [] })
+    vi.mocked((await import('@/lib/auth')).auth).mockResolvedValue({
+      user: { email: 'client@test.com', userId: clientId, role: 'client', nickname: 'client1', name: 'Client' }
+    } as any)
+    const { POST } = await import('@/app/api/client/sessions/route')
+    const req = new Request('http://localhost/api/client/sessions', {
+      method: 'POST',
+      body: JSON.stringify({ scheduledAt: at('12:00'), type: 'regular', allowDebt: true }),
+      headers: { 'Content-Type': 'application/json' },
+    })
+    expect((await POST(req as any)).status).toBe(402)
+  })
+
+  it('клієнт не може створити заняття через тренерський роут → 401', async () => {
+    vi.mocked((await import('@/lib/auth')).auth).mockResolvedValue({
+      user: { email: 'client@test.com', userId: clientId, role: 'client', nickname: 'client1', name: 'Client' }
+    } as any)
+    const res = await postSession({ clientId, scheduledAt: at('10:00'), duration: 60, type: 'regular', allowDebt: true })
+    expect(res.status).toBe(401)
+  })
+
+  it('минуле при нульовому балансі позначається onDebt', async () => {
+    const { Balance } = await import('@atleti/db')
+    await Balance.create({ clientId, coachId, sessionsTotal: 2, sessionsUsed: 2, transactions: [] })
+    const res = await postSession({ clientId, scheduledAt: pastAt('10:00'), duration: 60, type: 'regular', status: 'completed' })
+    expect(res.status).toBe(201)
+    expect((await res.json()).session.onDebt).toBe(true)
+  })
+
+  it('минуле при оплаченому залишку — не борг', async () => {
+    const { Balance } = await import('@atleti/db')
+    await Balance.create({ clientId, coachId, sessionsTotal: 2, sessionsUsed: 1, transactions: [] })
+    const res = await postSession({ clientId, scheduledAt: pastAt('10:00'), duration: 60, type: 'regular', status: 'completed' })
+    expect((await res.json()).session.onDebt).toBe(false)
+  })
+})
+
+describe('PUT /api/coach/sessions/[id] — позначка боргу при поверненні в заплановані', () => {
+  async function putStatus(id: string, status: string) {
+    const { PUT } = await import('@/app/api/coach/sessions/[sessionId]/route')
+    const req = new Request(`http://localhost/api/coach/sessions/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify({ status }),
+      headers: { 'Content-Type': 'application/json' },
+    })
+    return PUT(req as any, { params: { sessionId: id } })
+  }
+
+  it('скасоване боргове заняття після поповнення відновлюється вже не боргом', async () => {
+    const { Balance, Session } = await import('@atleti/db')
+    await Balance.create({ clientId, coachId, sessionsTotal: 0, sessionsUsed: 0, transactions: [] })
+    const { session } = await (await postSession({ clientId, scheduledAt: at('10:00'), duration: 60, type: 'regular', allowDebt: true })).json()
+    expect(session.onDebt).toBe(true)
+    await Session.updateOne({ _id: session._id }, { status: 'cancelled' })
+    await Balance.updateOne({ clientId, coachId }, { sessionsTotal: 1 })
+    expect((await putStatus(session._id, 'scheduled')).status).toBe(200)
+    expect((await Session.findById(session._id))!.onDebt).toBe(false)
+  })
+
+  it('скасоване оплачене заняття при нульовому балансі відновлюється з позначкою боргу', async () => {
+    const { Balance, Session } = await import('@atleti/db')
+    await Balance.create({ clientId, coachId, sessionsTotal: 1, sessionsUsed: 0, transactions: [] })
+    const { session } = await (await postSession({ clientId, scheduledAt: at('10:00'), duration: 60, type: 'regular' })).json()
+    expect(session.onDebt).toBe(false)
+    await Session.updateOne({ _id: session._id }, { status: 'cancelled' })
+    await Balance.updateOne({ clientId, coachId }, { sessionsUsed: 1 })
+    expect((await putStatus(session._id, 'scheduled')).status).toBe(200)
+    expect((await Session.findById(session._id))!.onDebt).toBe(true)
+  })
+
+  it('майбутнє проведене → заплановане: повернуте списання враховується, боргу немає', async () => {
+    const { Balance, Session } = await import('@atleti/db')
+    await Balance.create({ clientId, coachId, sessionsTotal: 1, sessionsUsed: 0, transactions: [] })
+    const { session } = await (await postSession({ clientId, scheduledAt: at('10:00'), duration: 60, type: 'regular' })).json()
+    expect((await putStatus(session._id, 'completed')).status).toBe(200)
+    expect((await putStatus(session._id, 'scheduled')).status).toBe(200)
+    expect((await Session.findById(session._id))!.onDebt).toBe(false)
+  })
+})

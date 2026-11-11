@@ -9,7 +9,7 @@ import AnamnesisCard from './AnamnesisCard'
 import RemoveClientButton from './RemoveClientButton'
 import Link from 'next/link'
 import { settlePastSessions } from '@/lib/settle-sessions'
-import { formatKyiv } from '@/lib/tz'
+import { formatKyiv, kyivParts } from '@/lib/tz'
 import { pluralSessions } from '@/lib/balance'
 
 export const metadata = { title: 'Клієнт' }
@@ -26,15 +26,19 @@ export default async function ClientDetailPage({ params }: { params: { clientId:
     ClientCoach.findOne({ clientId: params.clientId, coachId: user.userId })
       .populate('clientId', 'name nickname avatar'),
     Balance.findOne({ clientId: params.clientId, coachId: user.userId }),
+    // Уся історія, без ліміту: тренер звіряє з нею борги й оплати за будь-який місяць.
     Session.find({ clientId: params.clientId, coachId: user.userId })
+      .select('scheduledAt duration status onDebt')
       .sort({ scheduledAt: -1 })
-      .limit(10),
+      .lean(),
   ])
 
   if (!relationship) redirect('/coach/clients')
 
   const client = relationship.clientId as any
   const sessionsRemaining = (balance?.sessionsTotal ?? 0) - (balance?.sessionsUsed ?? 0)
+  const scheduledCount = sessions.filter((s: any) => s.status === 'scheduled').length
+  const months = groupByKyivMonth(sessions as any[])
 
   return (
     <div className="space-y-4 pt-4">
@@ -67,6 +71,9 @@ export default async function ClientDetailPage({ params }: { params: { clientId:
             <div className="text-right">
               <p className="text-sm text-gray-500">Всього: {balance?.sessionsTotal ?? 0}</p>
               <p className="text-sm text-gray-500">Використано: {balance?.sessionsUsed ?? 0}</p>
+              {scheduledCount > 0 && (
+                <p className="text-sm text-gray-500">Заплановано: {scheduledCount}</p>
+              )}
             </div>
           </div>
           <TopUpButton clientId={params.clientId} />
@@ -76,21 +83,39 @@ export default async function ClientDetailPage({ params }: { params: { clientId:
       <AnamnesisCard clientId={params.clientId} initialAnamnesis={relationship.anamnesis ?? ''} />
 
       <div>
-        <h2 className="text-base font-semibold text-gray-900 mb-2">Останні заняття</h2>
+        <h2 className="text-base font-semibold text-gray-900 mb-2">Історія занять</h2>
         {sessions.length === 0 ? (
           <GlassCard><p className="text-sm text-gray-400 text-center py-4">Занять ще немає</p></GlassCard>
         ) : (
-          <div className="space-y-2">
-            {sessions.map((s: any) => (
-              <GlassCard key={s._id.toString()} className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm font-medium text-gray-900">
-                    {formatKyiv(s.scheduledAt, { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}
-                  </p>
-                  <p className="text-xs text-gray-500">{s.duration} хв</p>
+          <div className="space-y-3">
+            {/* Найновіший місяць розгорнутий, решта згорнуті: повна історія за роки
+                інакше перетворилась би на нескінченну стрічку. */}
+            {months.map((m, i) => (
+              <details key={m.key} open={i === 0} className="group">
+                <summary className="flex cursor-pointer list-none items-center justify-between rounded-md px-1 py-1.5 text-sm font-medium text-gray-700">
+                  <span>{m.label}</span>
+                  <span className="text-xs text-gray-400">
+                    {m.sessions.length} {pluralSessions(m.sessions.length)}
+                    <span className="ml-1 inline-block transition-transform group-open:rotate-180">▾</span>
+                  </span>
+                </summary>
+                <div className="mt-1 space-y-2">
+                  {m.sessions.map((s: any) => (
+                    <GlassCard key={s._id.toString()} className="flex items-center justify-between">
+                      <div>
+                        <p className="text-sm font-medium text-gray-900">
+                          {formatKyiv(s.scheduledAt, { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}
+                        </p>
+                        <p className="text-xs text-gray-500">{s.duration} хв</p>
+                      </div>
+                      <div className="flex flex-wrap items-center justify-end gap-1">
+                        {s.onDebt && s.status !== 'cancelled' && <Badge variant="danger">Записано в борг</Badge>}
+                        <SessionStatusBadge status={s.status} />
+                      </div>
+                    </GlassCard>
+                  ))}
                 </div>
-                <SessionStatusBadge status={s.status} />
-              </GlassCard>
+              </details>
             ))}
           </div>
         )}
@@ -113,4 +138,27 @@ function SessionStatusBadge({ status }: { status: string }) {
   }
   const { label, variant } = map[status] ?? { label: status, variant: 'default' }
   return <Badge variant={variant}>{label}</Badge>
+}
+
+const MONTHS_UK = [
+  'Січень', 'Лютий', 'Березень', 'Квітень', 'Травень', 'Червень',
+  'Липень', 'Серпень', 'Вересень', 'Жовтень', 'Листопад', 'Грудень',
+]
+
+// Межі місяця — київські: заняття о 00:30 першого числа за Києвом у UTC ще в
+// попередньому місяці, і групування за UTC відносило б його не туди.
+// Вхід уже відсортований за спаданням, тож порядок груп і всередині них зберігається.
+function groupByKyivMonth<T extends { scheduledAt: Date }>(sessions: T[]) {
+  const groups: { key: string; label: string; sessions: T[] }[] = []
+  for (const s of sessions) {
+    const { year, month } = kyivParts(new Date(s.scheduledAt))
+    const key = `${year}-${month}`
+    let g = groups[groups.length - 1]
+    if (!g || g.key !== key) {
+      g = { key, label: `${MONTHS_UK[month - 1]} ${year}`, sessions: [] }
+      groups.push(g)
+    }
+    g.sessions.push(s)
+  }
+  return groups
 }

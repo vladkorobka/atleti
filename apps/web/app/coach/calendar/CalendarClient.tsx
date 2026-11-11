@@ -130,7 +130,8 @@ export default function CalendarClient({ clients }: { clients: Client[] }) {
   const [statusChanging, setStatusChanging] = useState(false)
   const [confirmDeleteSession, setConfirmDeleteSession] = useState<Session | null>(null)
   const [deleting, setDeleting] = useState(false)
-  const [confirmPastDebt, setConfirmPastDebt] = useState(false)
+  // Підтвердження запису понад оплачене: минуле списується одразу, майбутнє — після настання.
+  const [confirmDebt, setConfirmDebt] = useState<null | 'past' | 'future'>(null)
   // «Зараз» для рендера модалки додавання. Без тика форма, відкрита о 13:58 на
   // 14:00, о 14:01 показувала б «Додати заняття», тоді як сервер уже прийняв би
   // запис як минулий і списав баланс.
@@ -371,7 +372,7 @@ export default function CalendarClient({ clients }: { clients: Client[] }) {
 
   // `past` приходить від виклику: рендер і обробник інакше міряли б час різними
   // годинниками, і форма показувала б «Додати заняття», поки летить запис проведеного.
-  async function submitSession(past: boolean) {
+  async function submitSession(past: boolean, allowDebt = false) {
     const savedDate = form.date
     setSaving(true)
     setError('')
@@ -386,21 +387,28 @@ export default function CalendarClient({ clients }: { clients: Client[] }) {
           duration: Number(form.duration),
           type: form.type,
           status: past ? 'completed' : 'scheduled',
+          allowDebt,
         }),
       })
       // 500 від Next.js приходить текстом, не JSON — без catch тут летів би виняток
       // і тренер бачив би «Помилка створення заняття» замість справжньої причини.
       const data = await res.json().catch(() => ({}))
       if (!res.ok) {
+        // Залишок у формі міг застаріти (клієнт щойно забронював останнє вільне) —
+        // тоді замість глухої помилки пропонуємо той самий запис у борг.
+        if (res.status === 402 && !past && !allowDebt) {
+          setConfirmDebt('future')
+          return
+        }
         const msg = typeof data.error === 'string' ? data.error : 'Помилка'
         // Діалог підтвердження закриваємо і при помилці: текст помилки рендериться
         // у формі під ним, і за відкритим оверлеєм його не було б видно.
-        setConfirmPastDebt(false)
+        setConfirmDebt(null)
         setError(msg)
         toast.error(msg)
         return
       }
-      setConfirmPastDebt(false)
+      setConfirmDebt(null)
       setAddOpen(false)
       toast.success(past ? 'Проведене заняття записано' : 'Заняття додано')
       // Переводимо календар на дату запису — інакше заняття в іншому місяці
@@ -415,7 +423,7 @@ export default function CalendarClient({ clients }: { clients: Client[] }) {
       await loadSessions()
       router.refresh()
     } catch {
-      setConfirmPastDebt(false)
+      setConfirmDebt(null)
       setError('Помилка створення заняття')
       toast.error('Помилка створення заняття')
     } finally {
@@ -428,10 +436,12 @@ export default function CalendarClient({ clients }: { clients: Client[] }) {
     const past = isPastSlot(form.date, form.time)
     // Ретроактивне списання зменшує лише sessionsUsed, тож у мінус баланс іде за
     // оплаченим залишком без резерву — `remaining` тут дав би хибну тривогу.
-    const goesNegative = (clients.find(c => c.id === form.clientId)?.paidLeft ?? 0) <= 0
-    if (past && goesNegative) {
+    // Наперед — навпаки, резерв рахується: сервер міряє саме `remaining`.
+    const client = clients.find(c => c.id === form.clientId)
+    const goesNegative = past ? (client?.paidLeft ?? 0) <= 0 : (client?.remaining ?? 0) <= 0
+    if (goesNegative) {
       setError('')
-      setConfirmPastDebt(true)
+      setConfirmDebt(past ? 'past' : 'future')
       return
     }
     submitSession(past)
@@ -1049,7 +1059,7 @@ export default function CalendarClient({ clients }: { clients: Client[] }) {
             onChange={v => setForm(f => ({ ...f, clientId: v }))}
             options={clients.map(c => ({
               value: c.id,
-              label: `${c.name} (@${c.nickname}) · ${c.remaining > 0 ? `${c.remaining} зан.` : 'немає занять'}`,
+              label: `${c.name} (@${c.nickname}) · ${c.remaining > 0 ? `${c.remaining} зан.` : c.remaining < 0 ? `понад баланс ${-c.remaining} зан.` : 'немає занять'}`,
             }))}
             placeholder="Оберіть клієнта"
           />
@@ -1083,12 +1093,13 @@ export default function CalendarClient({ clients }: { clients: Client[] }) {
             </p>
           ) : selectedClientNoBalance && (
             <p className="text-xs text-amber-600 bg-amber-50 rounded-md px-3 py-2">
-              У клієнта немає вільних занять на балансі. Поповніть баланс, щоб запланувати заняття.
+              У клієнта нульовий баланс. Заняття буде записане в борг: після проведення баланс
+              піде в мінус, і наступне поповнення спершу покриє цей борг.
             </p>
           )}
           {error && <p className="text-xs text-red-500">{error}</p>}
-          <Button type="submit" loading={saving} disabled={saving || (!isPastForm && selectedClientNoBalance)} fullWidth size="lg">
-            {saving ? 'Збереження...' : isPastForm ? 'Записати проведене' : 'Додати заняття'}
+          <Button type="submit" loading={saving} disabled={saving} fullWidth size="lg">
+            {saving ? 'Збереження...' : isPastForm ? 'Записати проведене' : selectedClientNoBalance ? 'Записати в борг' : 'Додати заняття'}
           </Button>
         </form>
       </GlassModal>
@@ -1150,16 +1161,18 @@ export default function CalendarClient({ clients }: { clients: Client[] }) {
         </GlassModal>
       )}
 
-      {/* Confirm retroactive session that pushes the balance negative */}
+      {/* Confirm a session beyond the paid package (past or future) */}
       <ConfirmDialog
-        open={confirmPastDebt}
+        open={confirmDebt !== null}
         title="Баланс піде в мінус"
-        message="У клієнта немає вільних занять на балансі. Проведене заняття все одно буде записане, а залишок стане від'ємним. Продовжити?"
-        confirmLabel="Записати проведене"
+        message={confirmDebt === 'future'
+          ? "У клієнта нульовий баланс. Заняття буде записане в борг: після проведення залишок стане від'ємним, а наступне поповнення спершу покриє борг. Продовжити?"
+          : "У клієнта немає вільних занять на балансі. Проведене заняття все одно буде записане, а залишок стане від'ємним. Продовжити?"}
+        confirmLabel={confirmDebt === 'future' ? 'Записати в борг' : 'Записати проведене'}
         cancelLabel="Назад"
         loading={saving}
-        onConfirm={() => submitSession(true)}
-        onClose={() => setConfirmPastDebt(false)}
+        onConfirm={() => submitSession(confirmDebt === 'past', true)}
+        onClose={() => setConfirmDebt(null)}
       />
 
       {/* Confirm session cancellation (delete) */}

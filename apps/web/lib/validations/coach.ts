@@ -37,6 +37,9 @@ export const sessionCreateSchema = z.object({
   type: z.enum(['regular', 'split', 'online', 'consultation']).optional().default('regular'),
   // 'completed' — ретроактивний запис уже проведеного заняття (лише для минулої дати)
   status: z.enum(['scheduled', 'completed']).optional().default('scheduled'),
+  // Явна згода тренера планувати понад оплачений пакет. Без неї роут відповідає 402,
+  // щоб UI показав попередження до запису, а не після.
+  allowDebt: z.boolean().optional().default(false),
 })
 
 export const sessionUpdateSchema = z.object({

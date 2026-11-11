@@ -77,6 +77,7 @@ export interface ISession {
   cancelledByRole?: UserRole
   cancelReason?: string
   createdBy: UserRole
+  onDebt?: boolean
 }
 
 export interface IAttachment {
