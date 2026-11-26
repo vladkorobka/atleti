@@ -4,10 +4,10 @@ import { MongoMemoryServer } from 'mongodb-memory-server'
 import bcrypt from 'bcryptjs'
 import { kyivWallTimeToUtc } from '@/lib/tz'
 
-const sent: { chatId: number; text: string }[] = []
+const sent: { chatId: number; text: string; markup?: any }[] = []
 vi.mock('@/lib/telegram/api', async (orig) => ({
   ...(await orig<typeof import('@/lib/telegram/api')>()),
-  sendMessage: vi.fn(async (chatId: number, text: string) => { sent.push({ chatId, text }); return true }),
+  sendMessage: vi.fn(async (chatId: number, text: string, markup?: any) => { sent.push({ chatId, text, markup }); return true }),
   deleteMessage: vi.fn(async () => true),
 }))
 
@@ -32,7 +32,7 @@ beforeAll(async () => {
 afterAll(async () => { await mongoose.disconnect(); await mongod.stop() })
 beforeEach(async () => {
   sent.length = 0
-  await Promise.all([db.TelegramChat.deleteMany({}), db.TelegramSent.deleteMany({}), db.TelegramLoginFail.deleteMany({}), db.Session.deleteMany({})])
+  await Promise.all([db.TelegramChat.deleteMany({}), db.TelegramSent.deleteMany({}), db.TelegramLoginFail.deleteMany({}), db.Session.deleteMany({}), db.Balance.deleteMany({}), db.ClientCoach.deleteMany({})])
 })
 
 const msg = (chatId: number, text: string, id = 1) =>
@@ -127,5 +127,112 @@ describe('розсилки', () => {
     await jobs.sendClientReminders(kyivWallTimeToUtc(2026, 11, 26, 17, 30))
     await db.Session.updateOne({ _id: s._id }, { scheduledAt: kyivWallTimeToUtc(2026, 11, 27, 19, 0) })
     expect(await jobs.sendClientReminders(kyivWallTimeToUtc(2026, 11, 26, 18, 30))).toBe(1)
+  })
+})
+
+
+describe('вхід поштою', () => {
+  it('пошта замість нікнейма теж прив’язує, регістр не важить', async () => {
+    await link(700, 'K@T.com')
+    expect(String((await db.TelegramChat.findOne({ chatId: 700 }).lean())!.userId)).toBe(String(clientId))
+    expect(sent.at(-1)!.text).toContain('Олег')
+    expect(sent.at(-1)!.text).not.toContain('client1')
+  })
+  it('у повідомленнях бота немає згадок про Google', async () => {
+    await bot.handleUpdate(msg(701, 'coach1'))
+    await bot.handleUpdate(msg(701, 'bad'))
+    expect(sent.map(m => m.text).join('\n')).not.toMatch(/google/i)
+  })
+})
+
+describe('кнопки', () => {
+  beforeEach(async () => { await link(200, 'coach1'); await link(300, 'client1'); sent.length = 0 })
+  const tomorrow18 = () => kyivWallTimeToUtc(2026, 11, 27, 18, 0)
+
+  it('клієнт вимикає нагадування — їх не шлють; вмикає — шлють', async () => {
+    await db.Session.create({ coachId, clientId, scheduledAt: tomorrow18(), createdBy: 'client' } as any)
+    await bot.handleUpdate(msg(300, '🔔 Нагадування: увімкнено'))
+    expect(JSON.stringify(sent.at(-1)!.markup)).toContain('🔕 Нагадування: вимкнено')
+    expect(await jobs.sendClientReminders(kyivWallTimeToUtc(2026, 11, 26, 17, 30))).toBe(0)
+    await bot.handleUpdate(msg(300, '🔕 Нагадування: вимкнено'))
+    expect(await jobs.sendClientReminders(kyivWallTimeToUtc(2026, 11, 26, 17, 35))).toBe(1)
+  })
+  it('тренер вимикає дайджест — його не шлють', async () => {
+    await bot.handleUpdate(msg(200, '🔔 Дайджест: увімкнено'))
+    expect(await jobs.sendCoachDigests(kyivWallTimeToUtc(2026, 11, 26, 7, 0))).toBe(0)
+  })
+  it('кнопка тренера в клієнта нічого не перемикає', async () => {
+    await bot.handleUpdate(msg(300, '🔔 Дайджест: увімкнено'))
+    expect((await db.TelegramChat.findOne({ chatId: 300 }).lean())!.digestOn).not.toBe(false)
+  })
+  it('Баланс показує доступні й заплановані', async () => {
+    await db.ClientCoach.create({ clientId, coachId, status: 'active' } as any)
+    await db.Balance.create({ clientId, coachId, sessionsTotal: 5, sessionsUsed: 1 } as any)
+    await db.Session.create({ coachId, clientId, scheduledAt: new Date(Date.now() + 86400_000), createdBy: 'client' } as any)
+    await bot.handleUpdate(msg(300, '💰 Баланс'))
+    expect(sent.at(-1)!.text).toContain('Доступно для запису: <b>3</b>')
+    expect(sent.at(-1)!.text).toContain('Заплановано: <b>1</b>')
+  })
+})
+
+describe('останнє заняття', () => {
+  beforeEach(async () => {
+    await link(300, 'client1'); sent.length = 0
+    await db.ClientCoach.create({ clientId, coachId, status: 'active' } as any)
+  })
+  // Фіксуємо «зараз» у майбутньому відносно реального часу: upcoming рахує від new Date().
+  const base = new Date(Date.now() + 3 * 86400_000)
+  const at = (h: number) => new Date(base.getTime() + h * 3600_000)
+
+  it('баланс нуль і заняття останнє — попередження є', async () => {
+    await db.Balance.create({ clientId, coachId, sessionsTotal: 1, sessionsUsed: 0 } as any)
+    await db.Session.create({ coachId, clientId, scheduledAt: at(24), createdBy: 'client' } as any)
+    expect(await jobs.sendClientReminders(at(-0.5))).toBe(1)
+    expect(sent.at(-1)!.text).toContain('останнє')
+  })
+  it('після нього є ще заплановане — для першого попередження немає', async () => {
+    await db.Balance.create({ clientId, coachId, sessionsTotal: 2, sessionsUsed: 0 } as any)
+    await db.Session.create([
+      { coachId, clientId, scheduledAt: at(24), createdBy: 'client' },
+      { coachId, clientId, scheduledAt: at(48), createdBy: 'client' },
+    ] as any)
+    await jobs.sendClientReminders(at(-0.5))
+    expect(sent.at(-1)!.text).not.toContain('останнє')
+  })
+  it('на балансі ще є вільні — попередження немає', async () => {
+    await db.Balance.create({ clientId, coachId, sessionsTotal: 3, sessionsUsed: 0 } as any)
+    await db.Session.create({ coachId, clientId, scheduledAt: at(24), createdBy: 'client' } as any)
+    await jobs.sendClientReminders(at(-0.5))
+    expect(sent.at(-1)!.text).not.toContain('останнє')
+  })
+})
+
+
+describe('правки критика', () => {
+  beforeEach(async () => { await db.ClientCoach.create({ clientId, coachId, status: 'active' } as any) })
+  const base = new Date(Date.now() + 3 * 86400_000)
+  const at = (h: number) => new Date(base.getTime() + h * 3600_000)
+
+  it('заняття у борг — не «останнє на балансі»', async () => {
+    await link(300, 'client1'); sent.length = 0
+    await db.Balance.create({ clientId, coachId, sessionsTotal: 1, sessionsUsed: 0 } as any)
+    await db.Session.create([
+      { coachId, clientId, scheduledAt: at(10), createdBy: 'coach' },
+      { coachId, clientId, scheduledAt: at(24), createdBy: 'coach', onDebt: true },
+    ] as any)
+    await jobs.sendClientReminders(at(-0.5))
+    expect(sent.at(-1)!.text).not.toContain('останнє')
+  })
+  it('кнопка старої клавіатури в неприв’язаному чаті не з’їдає спроби', async () => {
+    await bot.handleUpdate(msg(800, '💰 Баланс'))
+    await bot.handleUpdate(msg(800, '💰 Баланс'))
+    expect(await db.TelegramLoginFail.countDocuments({ chatId: 800 })).toBe(0)
+    expect((await db.TelegramChat.findOne({ chatId: 800 }).lean())!.awaitingPassword).toBe(false)
+  })
+  it('нікнейм з «@» усередині входить', async () => {
+    const passwordHash = await bcrypt.hash('secret123', 4)
+    const u = await db.User.create({ email: 'x@t.com', name: 'X', role: 'client', nickname: 'a@b', passwordHash } as any)
+    await link(801, 'a@b')
+    expect(String((await db.TelegramChat.findOne({ chatId: 801 }).lean())!.userId)).toBe(String(u._id))
   })
 })

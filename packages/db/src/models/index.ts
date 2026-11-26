@@ -31,6 +31,8 @@ export interface ITelegramChat {
   userId?: string
   awaitingPassword: boolean
   pendingUserId?: string
+  remindersOn: boolean
+  digestOn: boolean
 }
 export const TelegramChat = (mongoose.models.TelegramChat ?? mongoose.model('TelegramChat', TelegramChatSchema)) as unknown as Model<ITelegramChat>
 export const TelegramSent = (mongoose.models.TelegramSent ?? mongoose.model('TelegramSent', TelegramSentSchema)) as unknown as Model<{ key: string; createdAt: Date }>

@@ -10,6 +10,9 @@ export const TelegramChatSchema = new Schema(
     userId: { type: Schema.Types.ObjectId, ref: 'User', unique: true, sparse: true },
     awaitingPassword: { type: Boolean, default: false },
     pendingUserId: { type: Schema.Types.ObjectId, ref: 'User' },
+    // Перемикачі з кнопок: клієнт — нагадування, тренер — ранковий дайджест.
+    remindersOn: { type: Boolean, default: true },
+    digestOn: { type: Boolean, default: true },
   },
   { timestamps: true }
 )

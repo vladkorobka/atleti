@@ -1,6 +1,7 @@
 import { User, Session, CoachProfile, TelegramChat, TelegramSent } from '@atleti/db'
 import { formatKyiv } from '@/lib/tz'
-import { sendMessage, escapeHtml } from './api'
+import { sendMessage, escapeHtml, firstName } from './api'
+import { getClientBalance } from './client-balance'
 import { isReminderDue, isDigestHour, kyivDayRange, REMINDER_LEAD_MIN } from './schedule'
 
 const TYPE_LABEL: Record<string, string> = {
@@ -48,7 +49,8 @@ const time = (d: Date) => formatKyiv(d, { hour: '2-digit', minute: '2-digit' })
 export async function sendCoachDigests(now: Date): Promise<number> {
   if (!isDigestHour(now)) return 0
   const { start, end, key: day } = kyivDayRange(now)
-  const chats = await TelegramChat.find({ userId: { $exists: true } }).lean()
+  // `$ne: false`, а не `true`: чати, прив'язані до появи перемикача, поля не мають.
+  const chats = await TelegramChat.find({ userId: { $exists: true }, digestOn: { $ne: false } }).lean()
   const coaches = await User.find({ _id: { $in: chats.map(c => c.userId) }, role: 'coach' }).lean()
   const chatByUser = new Map(chats.map(c => [String(c.userId), c.chatId]))
   const date = formatKyiv(now, { weekday: 'long', day: 'numeric', month: 'long' })
@@ -57,16 +59,18 @@ export async function sendCoachDigests(now: Date): Promise<number> {
       coachId: coach._id, status: 'scheduled', scheduledAt: { $gte: start, $lt: end },
     }).sort({ scheduledAt: 1 }).lean()
     const clients = await User.find({ _id: { $in: sessions.map(s => s.clientId) } }, { name: 1 }).lean()
-    const nameOf = (id: unknown) => clients.find(c => String(c._id) === String(id))?.name ?? 'Клієнт'
+    const nameOf = new Map(clients.map(c => [String(c._id), c.name]))
     const body = sessions.length
-      ? sessions.map(s => `• <b>${time(s.scheduledAt)}</b> — ${escapeHtml(nameOf(s.clientId))} (${TYPE_LABEL[s.type] ?? s.type}, ${s.duration} хв)`).join('\n')
-      : 'Записів на сьогодні немає.'
-    return `☀️ Розклад на ${date}\n\n${body}`
+      ? `🏋️ Занять сьогодні: <b>${sessions.length}</b>\n\n` + sessions.map(s =>
+          `🕐 <b>${time(s.scheduledAt)}</b> — ${escapeHtml(nameOf.get(String(s.clientId)) ?? 'Клієнт')} ` +
+          `(${TYPE_LABEL[s.type] ?? s.type}, ${s.duration} хв)`).join('\n')
+      : '🌿 Записів на сьогодні немає — гарного вільного дня!'
+    return `☀️ Доброго ранку, ${escapeHtml(firstName(coach.name))}!\n📅 Розклад на ${date}\n\n${body}`
   }))
 }
 
 export async function sendClientReminders(now: Date): Promise<number> {
-  const chats = await TelegramChat.find({ userId: { $exists: true } }).lean()
+  const chats = await TelegramChat.find({ userId: { $exists: true }, remindersOn: { $ne: false } }).lean()
   if (!chats.length) return 0
   const sessions = await Session.find({
     clientId: { $in: chats.map(c => c.userId) },
@@ -76,19 +80,30 @@ export async function sendClientReminders(now: Date): Promise<number> {
   if (!sessions.length) return 0
 
   const profiles = await CoachProfile.find({ userId: { $in: sessions.map(s => s.coachId) } }).lean()
-  const coaches = await User.find({ _id: { $in: sessions.map(s => s.coachId) } }, { name: 1 }).lean()
+  const people = await User.find({ _id: { $in: [...sessions.map(s => s.coachId), ...sessions.map(s => s.clientId)] } }, { name: 1 }).lean()
+  const nameOf = new Map(people.map(u => [String(u._id), u.name]))
   const chatByUser = new Map(chats.map(c => [String(c.userId), c.chatId]))
   const deadlineOf = new Map(profiles.map(p => [String(p.userId), p.cancellationDeadlineHours ?? 24]))
   const due = sessions.filter(s => isReminderDue(now, s.scheduledAt, deadlineOf.get(String(s.coachId)) ?? 24))
   // scheduledAt у ключі: перенесене заняття отримує власне нагадування.
-  return inBatches(due, s => sendOnce(`remind:${s._id}:${s.scheduledAt.toISOString()}`, chatByUser.get(String(s.clientId))!, () => {
+  return inBatches(due, s => sendOnce(`remind:${s._id}:${s.scheduledAt.toISOString()}`, chatByUser.get(String(s.clientId))!, async () => {
     const deadlineHours = deadlineOf.get(String(s.coachId)) ?? 24
-    const coach = coaches.find(c => String(c._id) === String(s.coachId))?.name ?? 'тренер'
+    const coach = nameOf.get(String(s.coachId)) ?? 'тренером'
+    const client = firstName(nameOf.get(String(s.clientId)) ?? '')
     const when = formatKyiv(s.scheduledAt, { weekday: 'long', day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit' })
     const deadline = new Date(s.scheduledAt.getTime() - deadlineHours * 3600_000)
     // Не завжди 30: заняття могли записати чи перенести вже всередині вікна.
     const left = Math.max(1, Math.round((deadline.getTime() - now.getTime()) / 60_000))
-    return `⏰ Нагадування: заняття <b>${when}</b> з ${escapeHtml(coach)}.\n` +
-      `Скасувати без списання можна до <b>${time(deadline)}</b> — лишилось ${left} хв.`
+    let text =
+      (client ? `👋 ${escapeHtml(client)}, нагадуємо про заняття!\n\n` : '👋 Нагадуємо про заняття!\n\n') +
+      `📅 <b>${when}</b>\n🏋️ з ${escapeHtml(coach)}\n\n` +
+      `⏳ Скасувати без списання можна до <b>${time(deadline)}</b> — лишилось ${left} хв.`
+    // «Останнє»: після цього заняття запланованих немає і залишок РІВНО нуль.
+    // Від'ємний означає записане в борг — це не «останнє оплачене», мовчимо.
+    const b = await getClientBalance(s.clientId, s.coachId)
+    if (b && b.remainder === 0 && String(b.upcoming.at(-1)?._id) === String(s._id)) {
+      text += '\n\n⚠️ Це <b>останнє</b> заняття на вашому балансі. Щоб продовжити тренування, поповніть баланс у тренера 💳'
+    }
+    return text
   }))
 }

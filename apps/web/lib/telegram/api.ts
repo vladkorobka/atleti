@@ -12,8 +12,11 @@ async function call(method: string, body: Record<string, unknown>): Promise<bool
   return res.ok
 }
 
-export function sendMessage(chatId: number, html: string): Promise<boolean> {
-  return call('sendMessage', { chat_id: chatId, text: html, parse_mode: 'HTML' })
+export function sendMessage(chatId: number, html: string, replyMarkup?: unknown): Promise<boolean> {
+  return call('sendMessage', {
+    chat_id: chatId, text: html, parse_mode: 'HTML',
+    ...(replyMarkup ? { reply_markup: replyMarkup } : {}),
+  })
 }
 
 export function deleteMessage(chatId: number, messageId: number): Promise<boolean> {
@@ -23,3 +26,5 @@ export function deleteMessage(chatId: number, messageId: number): Promise<boolea
 export function escapeHtml(s: string): string {
   return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
 }
+
+export const firstName = (name: string) => name.trim().split(/\s+/)[0] || name
