@@ -26,18 +26,32 @@ type LinkedUser = { _id: unknown; name: string; role: Role }
 
 const BTN = {
   balance: '💰 Баланс',
-  remindersOn: '🔔 Нагадування: увімкнено',
-  remindersOff: '🔕 Нагадування: вимкнено',
-  digestOn: '🔔 Дайджест: увімкнено',
-  digestOff: '🔕 Дайджест: вимкнено',
+  // На кнопці — дія, яку вона виконає, а не поточний стан.
+  remindersDisable: '🔕 Нагадування: вимкнути',
+  remindersEnable: '🔔 Нагадування: увімкнути',
+  digestDisable: '🔕 Дайджест: вимкнути',
+  digestEnable: '🔔 Дайджест: увімкнути',
 } as const
+
+// Підписи попередньої версії: такі клавіатури ще висять у чатах користувачів.
+const LEGACY_BUTTONS = [
+  '🔔 Нагадування: увімкнено', '🔕 Нагадування: вимкнено',
+  '🔔 Дайджест: увімкнено', '🔕 Дайджест: вимкнено',
+]
+
+const TOGGLES: Record<string, { role: Role; field: 'remindersOn' | 'digestOn'; value: boolean }> = {
+  [BTN.remindersDisable]: { role: 'client', field: 'remindersOn', value: false },
+  [BTN.remindersEnable]: { role: 'client', field: 'remindersOn', value: true },
+  [BTN.digestDisable]: { role: 'coach', field: 'digestOn', value: false },
+  [BTN.digestEnable]: { role: 'coach', field: 'digestOn', value: true },
+}
 
 const LOCKED = '⛔ Забагато невдалих спроб. Спробуйте за 15 хвилин.'
 
 function keyboard(role: Role, chat: Pick<ITelegramChat, 'remindersOn' | 'digestOn'>) {
   const rows = role === 'client'
-    ? [[BTN.balance], [chat.remindersOn !== false ? BTN.remindersOn : BTN.remindersOff]]
-    : [[chat.digestOn !== false ? BTN.digestOn : BTN.digestOff]]
+    ? [[BTN.balance], [chat.remindersOn !== false ? BTN.remindersDisable : BTN.remindersEnable]]
+    : [[chat.digestOn !== false ? BTN.digestDisable : BTN.digestEnable]]
   return { keyboard: rows.map(r => r.map(text => ({ text }))), resize_keyboard: true, is_persistent: true }
 }
 
@@ -100,17 +114,12 @@ async function handleLinked(chatId: number, text: string, chat: ITelegramChat): 
     return
   }
 
-  const toggle =
-    user.role === 'client' && (text === BTN.remindersOn || text === BTN.remindersOff) ? 'remindersOn'
-    : user.role === 'coach' && (text === BTN.digestOn || text === BTN.digestOff) ? 'digestOn'
-    : null
-  if (toggle) {
-    // Нове значення — від поточного в БД, а не від тексту кнопки: стара клавіатура
-    // в іншому місці чату могла показувати застарілий стан.
+  const toggle = TOGGLES[text]
+  if (toggle && toggle.role === user.role) {
+    // Явне значення, а не інверсія: повторне натискання застарілої кнопки
+    // не перевертає стан назад.
     const updated = await TelegramChat.findOneAndUpdate(
-      { chatId },
-      [{ $set: { [toggle]: { $eq: [{ $ifNull: [`$${toggle}`, true] }, false] } } }],
-      { new: true }
+      { chatId }, { $set: { [toggle.field]: toggle.value } }, { new: true }
     ).lean()
     await sendMessage(chatId, statusText(user.role, updated!), keyboard(user.role, updated!))
     return
@@ -147,7 +156,7 @@ export async function handleUpdate(update: TgUpdate): Promise<void> {
 
   // Кнопка зі старої клавіатури в уже неприв'язаному чаті (акаунт перепривʼязали
   // з іншого Telegram): це не логін і не пароль — інакше натискання з'їдали б спроби.
-  if ((Object.values(BTN) as string[]).includes(text)) {
+  if ((Object.values(BTN) as string[]).includes(text) || LEGACY_BUTTONS.includes(text)) {
     await sendMessage(chatId, '👋 Надішліть нікнейм або пошту з Атлеті.', { remove_keyboard: true })
     return
   }

@@ -151,19 +151,37 @@ describe('кнопки', () => {
 
   it('клієнт вимикає нагадування — їх не шлють; вмикає — шлють', async () => {
     await db.Session.create({ coachId, clientId, scheduledAt: tomorrow18(), createdBy: 'client' } as any)
-    await bot.handleUpdate(msg(300, '🔔 Нагадування: увімкнено'))
-    expect(JSON.stringify(sent.at(-1)!.markup)).toContain('🔕 Нагадування: вимкнено')
+    // Увімкнений стан — кнопка пропонує дію «вимкнути».
+    await bot.handleUpdate(msg(300, '/start'))
+    expect(JSON.stringify(sent.at(-1)!.markup)).toContain('🔕 Нагадування: вимкнути')
+    await bot.handleUpdate(msg(300, '🔕 Нагадування: вимкнути'))
+    expect(JSON.stringify(sent.at(-1)!.markup)).toContain('🔔 Нагадування: увімкнути')
     expect(await jobs.sendClientReminders(kyivWallTimeToUtc(2026, 11, 26, 17, 30))).toBe(0)
-    await bot.handleUpdate(msg(300, '🔕 Нагадування: вимкнено'))
+    await bot.handleUpdate(msg(300, '🔔 Нагадування: увімкнути'))
     expect(await jobs.sendClientReminders(kyivWallTimeToUtc(2026, 11, 26, 17, 35))).toBe(1)
   })
+  it('повторне «вимкнути» не вмикає назад', async () => {
+    await bot.handleUpdate(msg(300, '🔕 Нагадування: вимкнути'))
+    await bot.handleUpdate(msg(300, '🔕 Нагадування: вимкнути'))
+    expect((await db.TelegramChat.findOne({ chatId: 300 }).lean())!.remindersOn).toBe(false)
+  })
   it('тренер вимикає дайджест — його не шлють', async () => {
-    await bot.handleUpdate(msg(200, '🔔 Дайджест: увімкнено'))
+    await bot.handleUpdate(msg(200, '🔕 Дайджест: вимкнути'))
+    expect(JSON.stringify(sent.at(-1)!.markup)).toContain('🔔 Дайджест: увімкнути')
     expect(await jobs.sendCoachDigests(kyivWallTimeToUtc(2026, 11, 26, 7, 0))).toBe(0)
   })
   it('кнопка тренера в клієнта нічого не перемикає', async () => {
-    await bot.handleUpdate(msg(300, '🔔 Дайджест: увімкнено'))
+    await bot.handleUpdate(msg(300, '🔕 Дайджест: вимкнути'))
     expect((await db.TelegramChat.findOne({ chatId: 300 }).lean())!.digestOn).not.toBe(false)
+  })
+  it('стара кнопка «…: увімкнено» перемальовує клавіатуру на нові підписи', async () => {
+    await bot.handleUpdate(msg(300, '🔔 Нагадування: увімкнено'))
+    expect(JSON.stringify(sent.at(-1)!.markup)).toContain('🔕 Нагадування: вимкнути')
+    expect((await db.TelegramChat.findOne({ chatId: 300 }).lean())!.remindersOn).not.toBe(false)
+  })
+  it('стара кнопка в неприв’язаному чаті — не логін', async () => {
+    await bot.handleUpdate(msg(900, '🔔 Дайджест: увімкнено'))
+    expect((await db.TelegramChat.findOne({ chatId: 900 }).lean())!.awaitingPassword).toBe(false)
   })
   it('Баланс показує доступні й заплановані', async () => {
     await db.ClientCoach.create({ clientId, coachId, status: 'active' } as any)
@@ -222,6 +240,29 @@ describe('правки критика', () => {
     ] as any)
     await jobs.sendClientReminders(at(-0.5))
     expect(sent.at(-1)!.text).not.toContain('останнє')
+    expect(sent.at(-1)!.text).toContain('в борг')
+  })
+  it('борг уже погашений поповненням — нагадування про борг немає', async () => {
+    await link(300, 'client1'); sent.length = 0
+    await db.Balance.create({ clientId, coachId, sessionsTotal: 3, sessionsUsed: 0 } as any)
+    await db.Session.create([
+      { coachId, clientId, scheduledAt: at(10), createdBy: 'coach' },
+      { coachId, clientId, scheduledAt: at(24), createdBy: 'coach', onDebt: true },
+    ] as any)
+    await jobs.sendClientReminders(at(-0.5))
+    expect(sent.at(-1)!.text).not.toContain('в борг')
+  })
+  it('два в борг, поповнення на одне — про борг лише пізніше заняття', async () => {
+    await link(300, 'client1'); sent.length = 0
+    await db.Balance.create({ clientId, coachId, sessionsTotal: 1, sessionsUsed: 0 } as any)
+    await db.Session.create([
+      { coachId, clientId, scheduledAt: at(24), createdBy: 'coach', onDebt: true },
+      { coachId, clientId, scheduledAt: at(48), createdBy: 'coach', onDebt: true },
+    ] as any)
+    await jobs.sendClientReminders(at(-0.5))
+    expect(sent.at(-1)!.text).not.toContain('в борг')
+    await jobs.sendClientReminders(at(23.5))
+    expect(sent.at(-1)!.text).toContain('в борг')
   })
   it('кнопка старої клавіатури в неприв’язаному чаті не з’їдає спроби', async () => {
     await bot.handleUpdate(msg(800, '💰 Баланс'))

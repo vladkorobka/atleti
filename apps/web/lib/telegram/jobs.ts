@@ -99,10 +99,15 @@ export async function sendClientReminders(now: Date): Promise<number> {
       `📅 <b>${when}</b>\n🏋️ з ${escapeHtml(coach)}\n\n` +
       `⏳ Скасувати без списання можна до <b>${time(deadline)}</b> — лишилось ${left} хв.`
     // «Останнє»: після цього заняття запланованих немає і залишок РІВНО нуль.
-    // Від'ємний означає записане в борг — це не «останнє оплачене», мовчимо.
+    // Від'ємний означає записане в борг — для нього окремий текст.
     const b = await getClientBalance(s.clientId, s.coachId)
     if (b && b.remainder === 0 && String(b.upcoming.at(-1)?._id) === String(s._id)) {
       text += '\n\n⚠️ Це <b>останнє</b> заняття на вашому балансі. Щоб продовжити тренування, поповніть баланс у тренера 💳'
+    } else if (b && s.onDebt && b.remainder < 0 &&
+      b.upcoming.length - b.upcoming.findIndex(u => String(u._id) === String(s._id)) <= -b.remainder) {
+      // onDebt — знімок на момент запису. Поповнення гасить резерв за порядком дат,
+      // тож неоплаченими лишаються лише останні |remainder| запланованих.
+      text += '\n\n💸 Це заняття записане <b>в борг</b>. Будь ласка, оплатіть його тренеру.'
     }
     return text
   }))
